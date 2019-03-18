@@ -1,7 +1,13 @@
 #include <getopt.h>
 #include <iostream>
+#include <iomanip>
 
 using namespace std;
+
+void printConnections(string type, string filter)
+{
+    cout << type << " " << filter << endl;
+}
 
 int main(int argc, char *argv[])
 {
@@ -13,7 +19,7 @@ int main(int argc, char *argv[])
         {0, 0, 0, 0}};
     bool tcp_switch = false;
     bool udp_switch = false;
-    string filter_string;
+    string filter_string = "";
 
     while ((opt_index = getopt_long(argc, argv, optstring, longopts, NULL)) != -1)
     {
@@ -21,11 +27,9 @@ int main(int argc, char *argv[])
         {
         case 't':
             tcp_switch = true;
-            cout << "tcp open." << endl;
             break;
         case 'u':
             udp_switch = true;
-            cout << "udp open." << endl;
             break;
         case '?':
             cout << "invalid" << endl;
@@ -48,7 +52,23 @@ int main(int argc, char *argv[])
     if (argv[optind] != NULL)
     {
         filter_string = string(argv[optind]);
-        cout << "fiter:" << filter_string << endl;
+    }
+
+    if (tcp_switch)
+    {
+        cout << "List of TCP connections:" << endl;
+        cout << left << setw(6) << "Proto" << setw(25) << "Local Address" << setw(25) << "Foreign Address"
+             << "PID/Program name and arguments" << endl;
+        printConnections("tcp", filter_string);
+    }
+    if (udp_switch)
+    {
+        if (tcp_switch)
+            cout << endl;
+        cout << "List of UDP connections:" << endl;
+        cout << left << setw(6) << "Proto" << setw(25) << "Local Address" << setw(25) << "Foreign Address"
+             << "PID/Program name and arguments" << endl;
+        printConnections("udp", filter_string);
     }
 
     return 0;
