@@ -1,12 +1,18 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <getopt.h>
-#include <iostream>
-#include <iomanip>
+#include <dirent.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+
+#include <iostream>
+#include <iomanip>
 #include <cstdio>
 #include <sstream>
+#include <cctype>
+#include <cstring>
+#include <fstream>
 
 using namespace std;
 
@@ -32,13 +38,89 @@ void ipv6_hex2addr(char str_addr[33], char addr[INET6_ADDRSTRLEN])
     inet_ntop(AF_INET6, &hex_addr, addr, INET6_ADDRSTRLEN * sizeof(char));
 }
 
-void printConnection(string type, string src_ip, int src_port, string dis_ip, int dis_port, string inode)
+bool is_only_digit(char s[256])
+{
+    for (size_t i = 0; i < strlen(s); i++)
+    {
+        if (!isdigit(s[i]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+string getPid(string inode)
+{
+    DIR *proc_dir = opendir("/proc");
+    struct dirent *pid_dir_entry;
+    if (proc_dir != NULL)
+    {
+        while (pid_dir_entry = readdir(proc_dir))
+        {
+            if (pid_dir_entry->d_type == DT_DIR && is_only_digit(pid_dir_entry->d_name))
+            {
+                DIR *fd_dir;
+                string pid = string(pid_dir_entry->d_name);
+                string fd_dir_path = "/proc/" + pid + "/fd";
+                fd_dir = opendir(fd_dir_path.c_str());
+                struct dirent *fd_dir_entry;
+                while (fd_dir_entry = readdir(fd_dir))
+                {
+                    string fd_path = fd_dir_path + "/" + string(fd_dir_entry->d_name);
+                    struct stat fd_stat;
+                    stat(fd_path.c_str(), &fd_stat);
+                    char link[1000];
+                    if (S_ISSOCK(fd_stat.st_mode))
+                    {
+                        if (readlink(fd_path.c_str(), link, sizeof(link)))
+                        {
+                            if (strstr(link, inode.c_str()) != NULL)
+                            {
+                                return pid;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        cerr << "Directory \"/proc\" access failed" << endl;
+        exit(-1);
+    }
+}
+
+string getCommad(string pid)
+{
+    string path = "/proc/" + pid + "/cmdline";
+    string cmdline, arguments;
+    fstream file;
+    int pos;
+
+    file.open(path.c_str(), ios::in);
+
+    if (file)
+    {
+        getline(file, cmdline, '\0');
+        if ((pos = cmdline.find_last_of("/")) != string::npos)
+            cmdline.erase(0, pos + 1);
+
+        while (getline(file, arguments, '\0'))
+            cmdline += " " + arguments;
+    }
+    file.close();
+    return cmdline;
+}
+
+void printConnection(string type, string src_ip, int src_port, string dis_ip, int dis_port, string pid, string cmd)
 {
 
     cout << left << setw(6) << type
          << setw(25) << src_ip + ":" + porthex2string(src_port)
          << setw(25) << dis_ip + ":" + porthex2string(dis_port);
-    cout << inode << endl;
+    cout << pid << "/" << cmd << endl;
 }
 
 void getIPV4Connections(string ipv4_path)
@@ -62,7 +144,9 @@ void getIPV4Connections(string ipv4_path)
         {
             ipv4_hex2addr(src_addr, src_ip);
             ipv4_hex2addr(dis_addr, dis_ip);
-            printConnection("tcp", string(src_ip), src_port, string(dis_ip), dis_port, string(inode));
+            string pid = getPid(string(inode));
+            string cmd = getCommad(pid);
+            printConnection("tcp", string(src_ip), src_port, string(dis_ip), dis_port, pid, cmd);
         }
     }
     else
@@ -92,7 +176,9 @@ void getIPV6Connections(string ipv6_path)
         {
             ipv6_hex2addr(src_addr_str, src_ip);
             ipv6_hex2addr(dis_addr_str, dis_ip);
-            printConnection("tcp6", string(src_ip), src_port, string(dis_ip), dis_port, string(inode));
+            string pid = getPid(string(inode));
+            string cmd = getCommad(pid);
+            printConnection("tcp6", string(src_ip), src_port, string(dis_ip), dis_port, pid, cmd);
         }
     }
     else
