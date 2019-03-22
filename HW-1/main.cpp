@@ -14,6 +14,7 @@
 #include <cctype>
 #include <cstring>
 #include <fstream>
+#include <algorithm>
 
 using namespace std;
 
@@ -98,23 +99,24 @@ string getPid(string inode)
 string getCommad(string pid)
 {
     string path = "/proc/" + pid + "/cmdline";
-    string cmdline, arguments;
-    fstream file;
-    int pos;
+    string cmd;
+    fstream fs;
+    fs.open(path.c_str(), ios::in);
 
-    file.open(path.c_str(), ios::in);
-
-    if (file)
+    if (fs)
     {
-        getline(file, cmdline, '\0');
-        if ((pos = cmdline.find_last_of("/")) != string::npos)
-            cmdline.erase(0, pos + 1);
-
-        while (getline(file, arguments, '\0'))
-            cmdline += " " + arguments;
+        getline(fs, cmd);
+        stringstream ss(cmd);
+        int ignore;
+        string file_path;
+        getline(ss, file_path, '\0');
+        if ((ignore = file_path.find_last_of("/")) != string::npos)
+            cmd.erase(0, ignore + 1);
+        replace(cmd.begin(), cmd.end() - 1, '\0', ' ');
     }
-    file.close();
-    return cmdline;
+
+    fs.close();
+    return cmd;
 }
 
 bool filter_match(string cmd)
