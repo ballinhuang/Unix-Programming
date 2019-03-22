@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <regex.h>
 
 #include <iostream>
 #include <iomanip>
@@ -15,6 +16,8 @@
 #include <fstream>
 
 using namespace std;
+
+string filter_string = "";
 
 string porthex2string(int hexport)
 {
@@ -114,21 +117,42 @@ string getCommad(string pid)
     return cmdline;
 }
 
+bool filter_match(string cmd)
+{
+    regex_t reg;
+    if (regcomp(&reg, filter_string.c_str(), REG_EXTENDED | REG_NOSUB) != 0)
+    {
+        return false;
+    }
+
+    if (regexec(&reg, cmd.c_str(), 0, NULL, 0) != 0)
+    {
+        return false;
+    }
+
+    regfree(&reg);
+    return true;
+}
+
 void printConnection(string type, string src_ip, int src_port, string dis_ip, int dis_port, string pid, string cmd)
 {
-
+    if (filter_string != "" && filter_match(cmd) != true)
+    {
+        return;
+    }
     cout << left << setw(6) << type
          << setw(25) << src_ip + ":" + porthex2string(src_port)
          << setw(25) << dis_ip + ":" + porthex2string(dis_port);
     cout << pid << "/" << cmd << endl;
 }
 
-void getIPV4Connections(string ipv4_path)
+void getIPV4Connections(string type)
 {
     /*
         sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
         0: 00000000:0016 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 5246513 1 0000000000000000 100  0   0  10  0
     */
+    string ipv4_path = "/proc/net/" + type;
     FILE *file = fopen(ipv4_path.c_str(), "r");
     if (file)
     {
@@ -146,7 +170,7 @@ void getIPV4Connections(string ipv4_path)
             ipv4_hex2addr(dis_addr, dis_ip);
             string pid = getPid(string(inode));
             string cmd = getCommad(pid);
-            printConnection("tcp", string(src_ip), src_port, string(dis_ip), dis_port, pid, cmd);
+            printConnection(type, string(src_ip), src_port, string(dis_ip), dis_port, pid, cmd);
         }
     }
     else
@@ -155,13 +179,15 @@ void getIPV4Connections(string ipv4_path)
     }
 }
 
-void getIPV6Connections(string ipv6_path)
+void getIPV6Connections(string type)
 {
     /*
         sl  local_address                         remote_address                        st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
         0: 00000000000000000000000001000000:0D16 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 5251194 1 0000000000000000 100 0 0 10 0
     */
+    string ipv6_path = "/proc/net/" + type + "6";
     FILE *file = fopen(ipv6_path.c_str(), "r");
+
     if (file)
     {
         char header[1000];
@@ -178,7 +204,7 @@ void getIPV6Connections(string ipv6_path)
             ipv6_hex2addr(dis_addr_str, dis_ip);
             string pid = getPid(string(inode));
             string cmd = getCommad(pid);
-            printConnection("tcp6", string(src_ip), src_port, string(dis_ip), dis_port, pid, cmd);
+            printConnection(type + "6", string(src_ip), src_port, string(dis_ip), dis_port, pid, cmd);
         }
     }
     else
@@ -187,12 +213,10 @@ void getIPV6Connections(string ipv6_path)
     }
 }
 
-void getConnections(string type, string filter)
+void getConnections(string type)
 {
-    string ipv4_path = "/proc/net/" + type;
-    string ipv6_path = "/proc/net/" + type + "6";
-    getIPV4Connections(ipv4_path);
-    getIPV6Connections(ipv6_path);
+    getIPV4Connections(type);
+    getIPV6Connections(type);
 }
 
 int main(int argc, char *argv[])
@@ -205,7 +229,6 @@ int main(int argc, char *argv[])
         {0, 0, 0, 0}};
     bool tcp_switch = false;
     bool udp_switch = false;
-    string filter_string = "";
 
     while ((opt_index = getopt_long(argc, argv, optstring, longopts, NULL)) != -1)
     {
@@ -245,7 +268,7 @@ int main(int argc, char *argv[])
         cout << "List of TCP connections:" << endl;
         cout << left << setw(6) << "Proto" << setw(25) << "Local Address" << setw(25) << "Foreign Address"
              << "PID/Program name and arguments" << endl;
-        getConnections("tcp", filter_string);
+        getConnections("tcp");
     }
     if (udp_switch)
     {
@@ -254,7 +277,7 @@ int main(int argc, char *argv[])
         cout << "List of UDP connections:" << endl;
         cout << left << setw(6) << "Proto" << setw(25) << "Local Address" << setw(25) << "Foreign Address"
              << "PID/Program name and arguments" << endl;
-        getConnections("udp", filter_string);
+        getConnections("udp");
     }
 
     return 0;
