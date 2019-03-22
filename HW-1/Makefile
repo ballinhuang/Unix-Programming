@@ -1,4 +1,4 @@
-all: hw1.cpp
-	g++ -O3 -o hw1 hw1.cpp
+all: main.cpp
+	g++ -O3 -o main main.cpp
 clean:
-	rm hw1
+	rm main
