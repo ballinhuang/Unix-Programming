@@ -90,14 +90,18 @@ string getPid(string inode)
                             }
                         }
                     }
+                    closedir(fd_dir);
                 }
                 else
                 {
-                    cerr << "File \"/proc" << pid << "\" access failed" << endl;
-                    exit(-1);
+                    cerr << "File \"/proc/" << pid << "\" access failed" << endl;
+                    closedir(proc_dir);
+                    return "";
                 }
             }
         }
+        closedir(proc_dir);
+        return "";
     }
     else
     {
@@ -181,8 +185,11 @@ void getIPV4Connections(string type)
             ipv4_hex2addr(src_addr, src_ip);
             ipv4_hex2addr(dis_addr, dis_ip);
             string pid = getPid(string(inode));
-            string cmd = getCommad(pid);
-            printConnection(type, string(src_ip), src_port, string(dis_ip), dis_port, pid, cmd);
+            if (pid != "")
+            {
+                string cmd = getCommad(pid);
+                printConnection(type, string(src_ip), src_port, string(dis_ip), dis_port, pid, cmd);
+            }
         }
     }
     else
@@ -215,8 +222,11 @@ void getIPV6Connections(string type)
             ipv6_hex2addr(src_addr_str, src_ip);
             ipv6_hex2addr(dis_addr_str, dis_ip);
             string pid = getPid(string(inode));
-            string cmd = getCommad(pid);
-            printConnection(type + "6", string(src_ip), src_port, string(dis_ip), dis_port, pid, cmd);
+            if (pid != "")
+            {
+                string cmd = getCommad(pid);
+                printConnection(type + "6", string(src_ip), src_port, string(dis_ip), dis_port, pid, cmd);
+            }
         }
     }
     else
