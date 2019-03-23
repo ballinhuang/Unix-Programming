@@ -69,22 +69,32 @@ string getPid(string inode)
                 string fd_dir_path = "/proc/" + pid + "/fd";
                 fd_dir = opendir(fd_dir_path.c_str());
                 struct dirent *fd_dir_entry;
-                while (fd_dir_entry = readdir(fd_dir))
+                if (fd_dir != NULL)
                 {
-                    string fd_path = fd_dir_path + "/" + string(fd_dir_entry->d_name);
-                    struct stat fd_stat;
-                    stat(fd_path.c_str(), &fd_stat);
-                    char link[1000];
-                    if (S_ISSOCK(fd_stat.st_mode))
+                    while (fd_dir_entry = readdir(fd_dir))
                     {
-                        if (readlink(fd_path.c_str(), link, sizeof(link)))
+                        string fd_path = fd_dir_path + "/" + string(fd_dir_entry->d_name);
+                        struct stat fd_stat;
+                        stat(fd_path.c_str(), &fd_stat);
+                        char link[1000];
+                        if (S_ISSOCK(fd_stat.st_mode))
                         {
-                            if (strstr(link, inode.c_str()) != NULL)
+                            if (readlink(fd_path.c_str(), link, sizeof(link)))
                             {
-                                return pid;
+                                if (strstr(link, inode.c_str()) != NULL)
+                                {
+                                    closedir(proc_dir);
+                                    closedir(fd_dir);
+                                    return pid;
+                                }
                             }
                         }
                     }
+                }
+                else
+                {
+                    cerr << "File \"/proc" << pid << "\" access failed" << endl;
+                    exit(-1);
                 }
             }
         }
