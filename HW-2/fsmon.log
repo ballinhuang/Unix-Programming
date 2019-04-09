@@ -1,0 +1,5 @@
+# open("/etc/services", 0x0) = 4
+# read(/etc/services, 0x7ffd9ed00c20, 8192) = 8192
+# read(/etc/services, 0x7ffd9ed00c20, 8192) = 8192
+# read(/etc/services, 0x7ffd9ed00c20, 8192) = 2799
+# read(/etc/services, 0x7ffd9ed00c20, 8192) = 0

@@ -1,4 +1,3 @@
-
 CC	= gcc
 PROGS	= dir file fscanf getline stdio
 PRELOAD	= ../fsmon.so
