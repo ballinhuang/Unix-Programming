@@ -18,3 +18,15 @@ ls:
 
 clean:
 	rm -f $(PROGS)
+
+testdir:
+	 LD_PRELOAD=../fsmon.so ./dir > /dev/null
+	
+testfile:
+	LD_PRELOAD=../fsmon.so ./file > /dev/null
+
+testfscanf:
+	LD_PRELOAD=../fsmon.so ./scanf > /dev/null
+
+testgetline:
+	LD_PRELOAD=../fsmon.so ./getline > /dev/null

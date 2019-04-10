@@ -5,12 +5,17 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define errquit(x) { perror(x); exit(-1); }
+#define errquit(x) \
+	{              \
+		perror(x); \
+		exit(-1);  \
+	}
 #define FILENAME1 "./test1.txt"
-#define	FILENAME2 "./test2.txt"
-#define	DIRNAME	"./dir1"
+#define FILENAME2 "./test2.txt"
+#define DIRNAME "./dir1"
 
-int main() {
+int main()
+{
 	int fd = creat(FILENAME1, 0644);
 	int fd2, fd3;
 	char buf[16];
@@ -18,7 +23,8 @@ int main() {
 
 	chdir("./././");
 
-	if(fd < 0) errquit("creat");
+	if (fd < 0)
+		errquit("creat");
 	write(fd, "ABCD", 4);
 	lseek(fd, 4096, SEEK_SET);
 	write(fd, "EFGH", 4);
@@ -26,7 +32,8 @@ int main() {
 	close(fd);
 
 	fd = open(FILENAME1, O_RDONLY);
-	if(fd < 0) errquit("open");
+	if (fd < 0)
+		errquit("open");
 	fd2 = dup(fd);
 	fd3 = dup2(fd, 1000);
 	read(fd2, buf, sizeof(buf));
@@ -53,4 +60,3 @@ int main() {
 
 	return 0;
 }
-
