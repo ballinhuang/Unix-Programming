@@ -1,9 +1,9 @@
+// #include <bits/types/FILE.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
 
-void loadGnuLibrary(void) __attribute__((constructor));
 void checkOuputEnv(void) __attribute__((constructor));
 void _exit() __attribute__((destructor));
 
@@ -26,11 +26,10 @@ typedef int (*fp_creat_t)(const char *path, mode_t mode);
 /*
     stdio.h(P)
 */
-// int open(const char *pathname, int flags, mode_t mode);
-typedef int (*fp_open_t)(const char *pathname, int flags, mode_t mode);
-// FILE * fopen ( const char * filename, const char * mode );
-typedef FILE *(*fp_fopen_t)(const char *filename, const char *mode);
-
+// FILE *fopen(const char *path, const char *mode); F
+typedef FILE *(*fp_fopen_t)(const char *path, const char *mode);
+// int fprintf(FILE *stream, const char *format, ...);
+typedef int (*fp_fprintf_t)(FILE *stream, const char *format, ...);
 /*
     stdlib.h(P)
 */
@@ -52,3 +51,9 @@ typedef int (*fp_dup2_t)(int fildes, int fildes2);
 typedef int (*fp_close_t)(int fildes);
 // ssize_t readlink(const char *path, char *buf, size_t bufsiz);
 typedef ssize_t (*fp_readlink_t)(const char *path, char *buf, size_t bufsiz);
+
+/*
+    sys_stat.h(7POSIX)
+*/
+// int open(const char *pathname, int flags, mode_t mode);
+typedef int (*fp_open_t)(const char *pathname, int flags, mode_t mode);

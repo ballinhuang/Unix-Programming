@@ -1,5 +1,5 @@
 CC	= gcc
-PROGS	= dir file fscanf getline stdio
+PROGS	= dir file fscanf getline stdio fopen
 PRELOAD	= ../fsmon.so
 
 all: $(PROGS)
@@ -14,7 +14,7 @@ cat:
 	LD_PRELOAD=$(PRELOAD) cat /etc/passwd > /dev/null
 
 ls:
-	MONITOR_OUTPUT=/tmp/lsdev.log LD_PRELOAD=$(PRELOAD) ls -la /dev > /dev/null
+	MONITOR_OUTPUT=./lsdev.log LD_PRELOAD=$(PRELOAD) ls -la /dev > /dev/null
 
 clean:
 	rm -f $(PROGS)
@@ -30,3 +30,6 @@ testfscanf:
 
 testgetline:
 	LD_PRELOAD=../fsmon.so ./getline > /dev/null
+
+testfopen:
+	LD_PRELOAD=../fsmon.so ./fopen > /dev/null

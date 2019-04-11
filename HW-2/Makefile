@@ -2,7 +2,7 @@ CC	= g++
 PRELOAD	= ./fsmon.so
 
 all:
-	$(CC) -fPIC -shared -O3 -s -o fsmon.so LCM.cpp -ldl
+	$(CC) -fPIC -shared -o fsmon.so LCM.cpp -ldl
 
 clean:
 	rm fsmon.so

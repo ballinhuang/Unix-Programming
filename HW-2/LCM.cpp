@@ -5,18 +5,15 @@
 #include <string>
 #include <iostream>
 
-void *originalhandler;
+#define originalhandler RTLD_NEXT
 FILE *output;
-
-void loadGnuLibrary(void)
-{
-    originalhandler = dlopen("libc.so.6", RTLD_LAZY);
-}
+fp_fprintf_t org_fprintf;
 
 void checkOuputEnv(void)
 {
     fp_getenv_t org_getenv = (fp_getenv_t)dlsym(originalhandler, "getenv");
     char *outputenv = org_getenv("MONITOR_OUTPUT");
+    org_fprintf = (fp_fprintf_t)dlsym(originalhandler, "fprintf");
 
     if (outputenv != NULL)
     {
@@ -31,7 +28,6 @@ void checkOuputEnv(void)
 
 void _exit()
 {
-    dlclose(originalhandler);
     fclose(output);
 }
 
@@ -58,7 +54,7 @@ extern "C"
         std::string path = getPathByFd(dirfd(dirp));
         fp_closedir_t org_closedir = (fp_closedir_t)dlsym(originalhandler, "closedir");
         int result = org_closedir(dirp);
-        fprintf(output, "# %s(%s) = %d\n", __func__, path.c_str(), result);
+        org_fprintf(output, "# %s(%s) = %d\n", __func__, path.c_str(), result);
 
         return result;
     }
@@ -66,7 +62,7 @@ extern "C"
     {
         fp_opendir_t org_opendir = (fp_opendir_t)dlsym(originalhandler, "opendir");
         DIR *result = org_opendir(name);
-        fprintf(output, "# %s(\"%s\") = %p\n", __func__, name, result);
+        org_fprintf(output, "# %s(\"%s\") = %p\n", __func__, name, result);
         return result;
     }
 
@@ -76,9 +72,9 @@ extern "C"
         fp_readdir_t org_readdir = (fp_readdir_t)dlsym(originalhandler, "readdir");
         struct dirent *result = org_readdir(dirp);
         if (result)
-            fprintf(output, "# %s(%s) = %s\n", __func__, path.c_str(), result->d_name);
+            org_fprintf(output, "# %s(%s) = %s\n", __func__, path.c_str(), result->d_name);
         else
-            fprintf(output, "# %s(%s) = %p\n", __func__, path.c_str(), result);
+            org_fprintf(output, "# %s(%s) = %p\n", __func__, path.c_str(), result);
 
         return result;
     }
@@ -89,22 +85,19 @@ extern "C"
     {
         fp_creat_t org_creat = (fp_creat_t)dlsym(originalhandler, "creat");
         int result = org_creat(path, mode);
-        fprintf(output, "# %s(\"%s\", %08o) = %d\n", __func__, path, mode, result);
+        org_fprintf(output, "# %s(\"%s\", %08o) = %d\n", __func__, path, mode, result);
         return result;
     }
 
     /*
         stdio.h(P)
     */
-    int open(const char *pathname, int flags, mode_t mode)
+    FILE *fopen(const char *path, const char *mode)
     {
-        fp_open_t org_open = (fp_open_t)dlsym(originalhandler, "open");
-
-        int result;
-        result = org_open(pathname, flags, mode);
-        fprintf(output, "# %s(\"%s\", 0x%x) = %d\n", __func__, pathname, flags, result);
-        //TBD
-
+        fp_fopen_t org_fopen = (fp_fopen_t)dlsym(originalhandler, "fopen");
+        FILE *result = org_fopen(path, mode);
+        //org_fprintf(output, "# %s(const char *path, const char *mode) = result\n", __func__);
+        printf("# %s(\"%s\", \"%s\") = %p\n", __func__, path, mode, result);
         return result;
     }
 
@@ -116,7 +109,7 @@ extern "C"
         std::string path = getPathByFd(fildes);
         fp_read_t org_read = (fp_read_t)dlsym(originalhandler, "read");
         ssize_t result = org_read(fildes, buf, nbyte);
-        fprintf(output, "# %s(%s, %p, %zd) = %zd\n", __func__, path.c_str(), buf, nbyte, result);
+        org_fprintf(output, "# %s(%s, %p, %zd) = %zd\n", __func__, path.c_str(), buf, nbyte, result);
 
         return result;
     }
@@ -125,7 +118,7 @@ extern "C"
         std::string path = getPathByFd(fildes);
         fp_write_t org_write = (fp_write_t)dlsym(originalhandler, "write");
         ssize_t result = org_write(fildes, buf, nbyte);
-        fprintf(output, "# %s(%s, %p, %zd) = %zd\n", __func__, path.c_str(), buf, nbyte, result);
+        org_fprintf(output, "# %s(%s, %p, %zd) = %zd\n", __func__, path.c_str(), buf, nbyte, result);
         return result;
     }
     int dup(int fildes)
@@ -133,7 +126,7 @@ extern "C"
         std::string path = getPathByFd(fildes);
         fp_dup_t org_dup = (fp_dup_t)dlsym(originalhandler, "dup");
         int result = org_dup(fildes);
-        fprintf(output, "# %s(%s) = %d\n", __func__, path.c_str(), result);
+        org_fprintf(output, "# %s(%s) = %d\n", __func__, path.c_str(), result);
         return result;
     }
     int dup2(int fildes, int fildes2)
@@ -142,7 +135,7 @@ extern "C"
         std::string path2 = getPathByFd(fildes2);
         fp_dup2_t org_dup2 = (fp_dup2_t)dlsym(originalhandler, "dup2");
         int result = org_dup2(fildes, fildes2);
-        fprintf(output, "# %s(%s, %s) = %d\n", __func__, path1.c_str(), path2.c_str(), result);
+        org_fprintf(output, "# %s(%s, %s) = %d\n", __func__, path1.c_str(), path2.c_str(), result);
         return result;
     }
     int close(int fildes)
@@ -150,7 +143,22 @@ extern "C"
         std::string path = getPathByFd(fildes);
         fp_close_t org_close = (fp_close_t)dlsym(originalhandler, "close");
         int result = org_close(fildes);
-        fprintf(output, "# %s(%s) = %d\n", __func__, path.c_str(), result);
+        org_fprintf(output, "# %s(%s) = %d\n", __func__, path.c_str(), result);
+        return result;
+    }
+
+    /*
+        sys_stat.h(7POSIX)
+    */
+    int open(const char *pathname, int flags, mode_t mode)
+    {
+        fp_open_t org_open = (fp_open_t)dlsym(originalhandler, "open");
+
+        int result;
+        result = org_open(pathname, flags, mode);
+        org_fprintf(output, "# %s(\"%s\", 0x%x) = %d\n", __func__, pathname, flags, result);
+        //TBD
+
         return result;
     }
 }
