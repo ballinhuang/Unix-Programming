@@ -100,6 +100,51 @@ extern "C"
         printf("# %s(\"%s\", \"%s\") = %p\n", __func__, path, mode, result);
         return result;
     }
+    int fclose(FILE *stream)
+    {
+        std::string path = getPathByFd(fileno(stream));
+        fp_fclose_t org_fclose = (fp_fclose_t)dlsym(originalhandler, "fclose");
+        int result = org_fclose(stream);
+        //org_fprintf(output, "# %s(%s) = %d\n", __func__, path.c_str(), result);
+        printf("# %s(%s) = %d\n", __func__, path.c_str(), result);
+        return result;
+    }
+    size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
+    {
+        std::string path = getPathByFd(fileno(stream));
+        fp_fread_t org_fread = (fp_fread_t)dlsym(originalhandler, "fread");
+        size_t result = org_fread(ptr, size, nmemb, stream);
+        org_fprintf(output, "# %s(%p, %zd, %zd, %s) = %zd\n", __func__, ptr, size, nmemb, path.c_str(), result);
+        return result;
+    }
+    size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
+    {
+        std::string path = getPathByFd(fileno(stream));
+        fp_fwrite_t org_fwrite = (fp_fwrite_t)dlsym(originalhandler, "fwrite");
+        size_t result = org_fwrite(ptr, size, nmemb, stream);
+        org_fprintf(output, "# %s(%p, %zd, %zd, %s) = %zd\n", __func__, ptr, size, nmemb, path.c_str(), result);
+        return result;
+    }
+    int __isoc99_fscanf(FILE *stream, const char *format, ...)
+    {
+        std::string path = getPathByFd(fileno(stream));
+        va_list arg;
+        va_start(arg, format);
+        int result = vfscanf(stream, format, arg);
+        org_fprintf(output, "# %s(%s, \"%s\", ...) = %d\n", "fscanf", path.c_str(), format, result);
+        va_end(arg);
+        return result;
+    }
+    int fprintf(FILE *stream, const char *format, ...)
+    {
+        std::string path = getPathByFd(fileno(stream));
+        va_list arg;
+        va_start(arg, format);
+        int result = vfprintf(stream, format, arg);
+        org_fprintf(output, "# %s(%s, \"%s\", ...) = %d\n", __func__, path.c_str(), format, result);
+        va_end(arg);
+        return result;
+    }
 
     /*
         unistd.h(P)

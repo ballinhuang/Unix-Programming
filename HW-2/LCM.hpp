@@ -26,8 +26,16 @@ typedef int (*fp_creat_t)(const char *path, mode_t mode);
 /*
     stdio.h(P)
 */
-// FILE *fopen(const char *path, const char *mode); F
+// FILE *fopen(const char *path, const char *mode);     [FAIL]
 typedef FILE *(*fp_fopen_t)(const char *path, const char *mode);
+// int fclose(FILE *stream);        [FAIL]
+typedef int (*fp_fclose_t)(FILE *stream);
+// size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream);
+typedef size_t (*fp_fread_t)(void *ptr, size_t size, size_t nmemb, FILE *stream);
+// size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+typedef size_t (*fp_fwrite_t)(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+// int fscanf(FILE *stream, const char *format, ...);
+typedef int (*fp_fscanf_t)(FILE *stream, const char *format, ...);
 // int fprintf(FILE *stream, const char *format, ...);
 typedef int (*fp_fprintf_t)(FILE *stream, const char *format, ...);
 /*
