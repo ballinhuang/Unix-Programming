@@ -72,7 +72,7 @@ extern "C"
         fp_readdir_t org_readdir = (fp_readdir_t)dlsym(originalhandler, "readdir");
         struct dirent *result = org_readdir(dirp);
         if (result)
-            org_fprintf(output, "# %s(%s) = %s\n", __func__, path.c_str(), result->d_name);
+            org_fprintf(output, "# %s(%s) = \"%s\"\n", __func__, path.c_str(), result->d_name);
         else
             org_fprintf(output, "# %s(%s) = %p\n", __func__, path.c_str(), result);
 
@@ -145,6 +145,20 @@ extern "C"
         va_end(arg);
         return result;
     }
+    int remove(const char *pathname)
+    {
+        fp_remove_t org_remove = (fp_remove_t)dlsym(originalhandler, "remove");
+        int result = org_remove(pathname);
+        org_fprintf(output, "# %s(\"%s\") = %d\n", __func__, pathname, result);
+        return result;
+    }
+    int rename(const char *oldname, const char *newname)
+    {
+        fp_rename_t org_rename = (fp_rename_t)dlsym(originalhandler, "rename");
+        int result = org_rename(oldname, newname);
+        org_fprintf(output, "# %s(\"%s\", \"%s\") = %d\n", __func__, oldname, newname, result);
+        return result;
+    }
 
     /*
         unistd.h(P)
@@ -191,6 +205,55 @@ extern "C"
         org_fprintf(output, "# %s(%s) = %d\n", __func__, path.c_str(), result);
         return result;
     }
+    int chdir(const char *path)
+    {
+        fp_chdir_t org_chdir = (fp_chdir_t)dlsym(originalhandler, "chdir");
+        int result = org_chdir(path);
+        org_fprintf(output, "# %s(\"%s\") = %d\n", __func__, path, result);
+        return result;
+    }
+    int chown(const char *path, uid_t owner, gid_t group)
+    {
+        fp_chown_t org_chown = (fp_chown_t)dlsym(originalhandler, "chown");
+        int result = org_chown(path, owner, group);
+        org_fprintf(output, "# %s(\"%s\", %d, %d) = %d\n", __func__, path, owner, group, result);
+        return result;
+    }
+    int link(const char *path1, const char *path2)
+    {
+        fp_link_t org_link = (fp_link_t)dlsym(originalhandler, "link");
+        int result = org_link(path1, path2);
+        org_fprintf(output, "# %s(\"%s\", \"%s\") = %d\n", __func__, path1, path2, result);
+        return result;
+    }
+    int unlink(const char *path)
+    {
+        fp_unlink_t org_unlink = (fp_unlink_t)dlsym(originalhandler, "unlink");
+        int result = org_unlink(path);
+        org_fprintf(output, "# %s(\"%s\") = %d\n", __func__, path, result);
+        return result;
+    }
+    ssize_t readlink(const char *path, char *buf, size_t bufsiz)
+    {
+        fp_readlink_t org_readlink = (fp_readlink_t)dlsym(originalhandler, "readlink");
+        int result = org_readlink(path, buf, bufsiz);
+        org_fprintf(output, "# %s(\"%s\", \"%s\", %zd) = %d\n", __func__, path, buf, bufsiz, result);
+        return result;
+    }
+    int symlink(const char *path1, const char *path2)
+    {
+        fp_symlink_t org_symlink = (fp_symlink_t)dlsym(originalhandler, "symlink");
+        int result = org_symlink(path1, path2);
+        org_fprintf(output, "# %s(\"%s\", \"%s\") = %d\n", __func__, path1, path2, result);
+        return result;
+    }
+    int rmdir(const char *path)
+    {
+        fp_rmdir_t org_rmdir = (fp_rmdir_t)dlsym(originalhandler, "rmdir");
+        int result = org_rmdir(path);
+        org_fprintf(output, "# %s(\"%s\") = %d\n", __func__, path, result);
+        return result;
+    }
 
     /*
         sys_stat.h(7POSIX)
@@ -204,6 +267,20 @@ extern "C"
         org_fprintf(output, "# %s(\"%s\", 0x%x) = %d\n", __func__, pathname, flags, result);
         //TBD
 
+        return result;
+    }
+    int chmod(const char *path, mode_t mode)
+    {
+        fp_chmod_t org_chmod = (fp_chmod_t)dlsym(originalhandler, "chmod");
+        int result = org_chmod(path, mode);
+        org_fprintf(output, "# %s(\"%s\",%o) = %d\n", __func__, path, mode, result);
+        return result;
+    }
+    int mkdir(const char *path, mode_t mode)
+    {
+        fp_mkdir_t org_mkdir = (fp_mkdir_t)dlsym(originalhandler, "mkdir");
+        int result = org_mkdir(path, mode);
+        org_fprintf(output, "# %s(\"%s\", %o) = %d\n", __func__, path, mode, result);
         return result;
     }
 }

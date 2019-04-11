@@ -1,5 +1,5 @@
 CC	= gcc
-PROGS	= dir file fscanf getline stdio fopen fread fwrite
+PROGS	= dir file fscanf getline stdio fopen fread fwrite test
 PRELOAD	= ../fsmon.so
 
 all: $(PROGS)
@@ -18,6 +18,9 @@ ls:
 
 clean:
 	rm -f $(PROGS)
+
+testall:
+	 LD_PRELOAD=../fsmon.so ./test > /dev/null
 
 testdir:
 	 LD_PRELOAD=../fsmon.so ./dir > /dev/null

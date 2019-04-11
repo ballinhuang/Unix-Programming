@@ -38,6 +38,11 @@ typedef size_t (*fp_fwrite_t)(const void *ptr, size_t size, size_t nmemb, FILE *
 typedef int (*fp_fscanf_t)(FILE *stream, const char *format, ...);
 // int fprintf(FILE *stream, const char *format, ...);
 typedef int (*fp_fprintf_t)(FILE *stream, const char *format, ...);
+// int remove(const char *pathname);
+typedef int (*fp_remove_t)(const char *pathname);
+// int rename(const char *oldname, const char *newname);
+typedef int (*fp_rename_t)(const char *oldname, const char *newname);
+
 /*
     stdlib.h(P)
 */
@@ -57,11 +62,27 @@ typedef int (*fp_dup_t)(int fildes);
 typedef int (*fp_dup2_t)(int fildes, int fildes2);
 // int close(int fildes);
 typedef int (*fp_close_t)(int fildes);
+// int chdir(const char *path);
+typedef int (*fp_chdir_t)(const char *path);
+// int chown(const char *path, uid_t owner, gid_t group);
+typedef int (*fp_chown_t)(const char *path, uid_t owner, gid_t group);
 // ssize_t readlink(const char *path, char *buf, size_t bufsiz);
 typedef ssize_t (*fp_readlink_t)(const char *path, char *buf, size_t bufsiz);
+// int link(const char *path1, const char *path2);
+typedef int (*fp_link_t)(const char *path1, const char *path2);
+// int unlink(const char *path);
+typedef int (*fp_unlink_t)(const char *path);
+// int symlink(const char *path1, const char *path2);
+typedef int (*fp_symlink_t)(const char *path1, const char *path2);
+// int rmdir(const char *path);
+typedef int (*fp_rmdir_t)(const char *path);
 
 /*
     sys_stat.h(7POSIX)
 */
 // int open(const char *pathname, int flags, mode_t mode);
 typedef int (*fp_open_t)(const char *pathname, int flags, mode_t mode);
+// int chmod(const char *path, mode_t mode);
+typedef int (*fp_chmod_t)(const char *path, mode_t mode);
+// int mkdir(const char *path, mode_t mode);
+typedef int (*fp_mkdir_t)(const char *path, mode_t mode);
