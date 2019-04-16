@@ -140,7 +140,6 @@ extern "C"
         int result = vfscanf(stream, format, arg);
         org_fprintf(output, "# %s(%s, \"%s\", ...) = %d\n", "fscanf", path.c_str(), format, result);
         va_end(arg);
-        org_fprintf(output, "%d\n", fileno(stream));
         return result;
     }
     int fprintf(FILE *stream, const char *format, ...)

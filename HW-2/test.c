@@ -17,7 +17,6 @@ int main(int argc, char *argv[], char **envp)
     fgetc(stdin);
     fgets(buf, 1, stdin);
 
-    fprintf(stdout, "Value: ");
     fscanf(stdin, "%d", &value);
     fprintf(stdout, "Value [%d]\n", value);
 

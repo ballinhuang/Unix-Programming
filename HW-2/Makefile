@@ -11,4 +11,6 @@ cat:
 	LD_PRELOAD=$(PRELOAD) cat /etc/passwd > /dev/null
  
 testall:
-	LD_PRELOAD=$(PRELOAD) ./test
+	gcc -o test test.c
+	LD_PRELOAD=$(PRELOAD) ./test > /dev/null
+	rm test
