@@ -42,6 +42,10 @@ typedef int (*fp_fprintf_t)(FILE *stream, const char *format, ...);
 typedef int (*fp_remove_t)(const char *pathname);
 // int rename(const char *oldname, const char *newname);
 typedef int (*fp_rename_t)(const char *oldname, const char *newname);
+// int fgetc(FILE *stream);
+typedef int (*fp_fgetc_t)(FILE *stream);
+// char *fgets(char *s, int size, FILE *stream);
+typedef char *(*fp_fgets_t)(char *s, int size, FILE *stream);
 
 /*
     stdlib.h(P)
@@ -76,6 +80,8 @@ typedef int (*fp_unlink_t)(const char *path);
 typedef int (*fp_symlink_t)(const char *path1, const char *path2);
 // int rmdir(const char *path);
 typedef int (*fp_rmdir_t)(const char *path);
+// ssize_t pwrite(int fildes, const void *buf, size_t nbyte, off_t offset);
+typedef ssize_t (*fp_pwrite_t)(int fildes, const void *buf, size_t nbyte, off_t offset);
 
 /*
     sys_stat.h(7POSIX)
@@ -86,3 +92,7 @@ typedef int (*fp_open_t)(const char *pathname, int flags, mode_t mode);
 typedef int (*fp_chmod_t)(const char *path, mode_t mode);
 // int mkdir(const char *path, mode_t mode);
 typedef int (*fp_mkdir_t)(const char *path, mode_t mode);
+// int __lxstat(int __ver, const char *path, struct stat *buf);
+typedef int (*fp_lxstat_t)(int __ver, const char *path, struct stat *buf);
+// int __xstat(int __ver, const char * path, struct stat * buf);
+typedef int (*fp_xstat_t)(int __ver, const char *path, struct stat *buf);

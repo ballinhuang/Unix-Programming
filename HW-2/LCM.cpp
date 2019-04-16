@@ -28,11 +28,18 @@ void checkOuputEnv(void)
 
 void _exit()
 {
-    fclose(output);
+    fp_fclose_t org_fclose = (fp_fclose_t)dlsym(originalhandler, "fclose");
+    org_fclose(output);
 }
 
 std::string getPathByFd(int fd)
 {
+    if (fd == 0)
+        return "\"<STDIN>\"";
+    else if (fd == 1)
+        return "\"<STDOUT>\"";
+    else if (fd == 2)
+        return "\"<STDERR>\"";
     std::string fdpath = "/proc/self/fd/" + std::to_string(fd);
     fp_readlink_t org_readlink = (fp_readlink_t)dlsym(originalhandler, "readlink");
     char path[4096];
@@ -133,6 +140,7 @@ extern "C"
         int result = vfscanf(stream, format, arg);
         org_fprintf(output, "# %s(%s, \"%s\", ...) = %d\n", "fscanf", path.c_str(), format, result);
         va_end(arg);
+        org_fprintf(output, "%d\n", fileno(stream));
         return result;
     }
     int fprintf(FILE *stream, const char *format, ...)
@@ -157,6 +165,22 @@ extern "C"
         fp_rename_t org_rename = (fp_rename_t)dlsym(originalhandler, "rename");
         int result = org_rename(oldname, newname);
         org_fprintf(output, "# %s(\"%s\", \"%s\") = %d\n", __func__, oldname, newname, result);
+        return result;
+    }
+    int fgetc(FILE *stream)
+    {
+        std::string path = getPathByFd(fileno(stream));
+        fp_fgetc_t org_fgetc = (fp_fgetc_t)dlsym(originalhandler, "fgetc");
+        int result = org_fgetc(stream);
+        org_fprintf(output, "# %s(%s) = %c\n", __func__, path.c_str(), result);
+        return result;
+    }
+    char *fgets(char *s, int size, FILE *stream)
+    {
+        std::string path = getPathByFd(fileno(stream));
+        fp_fgets_t org_fgets = (fp_fgets_t)dlsym(originalhandler, "fgets");
+        char *result = org_fgets(s, size, stream);
+        org_fprintf(output, "# %s(\"%s\", %d, %s) = %c\n", __func__, s, size, path.c_str(), result);
         return result;
     }
 
@@ -254,6 +278,14 @@ extern "C"
         org_fprintf(output, "# %s(\"%s\") = %d\n", __func__, path, result);
         return result;
     }
+    ssize_t pwrite(int fildes, const void *buf, size_t nbyte, off_t offset)
+    {
+        std::string path = getPathByFd(fildes);
+        fp_pwrite_t org_pwrite = (fp_pwrite_t)dlsym(originalhandler, "pwrite");
+        ssize_t result = org_pwrite(fildes, buf, nbyte, offset);
+        org_fprintf(output, "# %s(%s, %p, %zd, %ld) = %zd\n", __func__, path.c_str(), buf, nbyte, offset, result);
+        return result;
+    }
 
     /*
         sys_stat.h(7POSIX)
@@ -281,6 +313,22 @@ extern "C"
         fp_mkdir_t org_mkdir = (fp_mkdir_t)dlsym(originalhandler, "mkdir");
         int result = org_mkdir(path, mode);
         org_fprintf(output, "# %s(\"%s\", %o) = %d\n", __func__, path, mode, result);
+        return result;
+    }
+    int __lxstat(int __ver, const char *path, struct stat *buf)
+    {
+        fp_lxstat_t org_lxstat = (fp_lxstat_t)dlsym(originalhandler, "__lxstat");
+        int result = org_lxstat(__ver, path, buf);
+        org_fprintf(output, "# %s(\"%s\", %p {dev=%d, ino=%d, mode=%05o, uid=%d, gid=%d, size=%ld}) = %d\n", "lstat", path,
+                    buf, buf->st_dev, buf->st_ino, buf->st_mode, buf->st_uid, buf->st_gid, buf->st_size, result);
+        return result;
+    }
+    int __xstat(int __ver, const char *path, struct stat *buf)
+    {
+        fp_xstat_t org_xstat = (fp_xstat_t)dlsym(originalhandler, "__xstat");
+        int result = org_xstat(__ver, path, buf);
+        org_fprintf(output, "# %s(\"%s\", %p {dev=%d, ino=%d, mode=%05o, uid=%d, gid=%d, size=%ld}) = %d\n", "stat", path,
+                    buf, buf->st_dev, buf->st_ino, buf->st_mode, buf->st_uid, buf->st_gid, buf->st_size, result);
         return result;
     }
 }

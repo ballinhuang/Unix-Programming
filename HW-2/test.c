@@ -14,11 +14,12 @@ int main(int argc, char *argv[], char **envp)
 {
     int value;
     char buf[MAXLINE];
+    fgetc(stdin);
+    fgets(buf, 1, stdin);
+
     fprintf(stdout, "Value: ");
     fscanf(stdin, "%d", &value);
     fprintf(stdout, "Value [%d]\n", value);
-    fgetc(stdin);
-    fgets(buf, 1, stdin);
 
     DIR *d;
     mkdir("./tempdir", 0777);
@@ -37,9 +38,9 @@ int main(int argc, char *argv[], char **envp)
     fclose(file);
 
     int fd = open("./temp2", O_RDWR);
-    pwrite(fd, buffer, 0, 0);
-    read(fd, buf, 0);
-    write(fd, buffer, 0);
+    pwrite(fd, buffer, 1, 0);
+    read(fd, buf, 1);
+    write(fd, buffer, 1);
     close(fd);
 
     chdir("./tempdir");
@@ -59,7 +60,7 @@ int main(int argc, char *argv[], char **envp)
     unlink("./temp2_slink");
 
     struct stat statbuf;
-    lstat("./temp2_slink", &statbuf);
+    lstat("./temp2", &statbuf);
     stat("./temp2", &statbuf);
 
     remove("./temp2");
