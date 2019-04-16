@@ -42,7 +42,7 @@ std::string getPathByFd(int fd)
         return "\"<STDERR>\"";
     std::string fdpath = "/proc/self/fd/" + std::to_string(fd);
     fp_readlink_t org_readlink = (fp_readlink_t)dlsym(originalhandler, "readlink");
-    char path[4096];
+    char path[10000];
     int n = org_readlink(fdpath.c_str(), path, sizeof(path));
     if (n < 0)
         return std::to_string(fd);
@@ -103,8 +103,7 @@ extern "C"
     {
         fp_fopen_t org_fopen = (fp_fopen_t)dlsym(originalhandler, "fopen");
         FILE *result = org_fopen(path, mode);
-        //org_fprintf(output, "# %s(const char *path, const char *mode) = result\n", __func__);
-        printf("# %s(\"%s\", \"%s\") = %p\n", __func__, path, mode, result);
+        org_fprintf(output, "# %s(\"%s\", \"%s\") = %p\n", __func__, path, mode, result);
         return result;
     }
     int fclose(FILE *stream)
@@ -112,8 +111,7 @@ extern "C"
         std::string path = getPathByFd(fileno(stream));
         fp_fclose_t org_fclose = (fp_fclose_t)dlsym(originalhandler, "fclose");
         int result = org_fclose(stream);
-        //org_fprintf(output, "# %s(%s) = %d\n", __func__, path.c_str(), result);
-        printf("# %s(%s) = %d\n", __func__, path.c_str(), result);
+        org_fprintf(output, "# %s(%s) = %d\n", __func__, path.c_str(), result);
         return result;
     }
     size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
