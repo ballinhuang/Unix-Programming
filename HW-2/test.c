@@ -14,8 +14,8 @@ int main(int argc, char *argv[], char **envp)
 {
     int value;
     char buf[MAXLINE];
+    fgets(buf, 10, stdin);
     fgetc(stdin);
-    fgets(buf, 1, stdin);
 
     fscanf(stdin, "%d", &value);
     fprintf(stdout, "Value [%d]\n", value);
@@ -36,6 +36,7 @@ int main(int argc, char *argv[], char **envp)
     fwrite(buffer, sizeof(char), sizeof(buffer), file);
     fclose(file);
 
+    int fd_creat = open("./temp3", O_RDWR | O_CREAT, S_IRWXU);
     int fd = open("./temp2", O_RDWR);
     pwrite(fd, buffer, 1, 0);
     read(fd, buf, 1);
@@ -54,7 +55,7 @@ int main(int argc, char *argv[], char **envp)
 
     link("./temp2", "./temp2_link");
     symlink("./temp2", "./temp2_slink");
-    readlink("./temp2_link", buf, sizeof(buf));
+    readlink("./temp2_slink", buf, sizeof(buf));
     unlink("./temp2_link");
     unlink("./temp2_slink");
 
@@ -62,6 +63,7 @@ int main(int argc, char *argv[], char **envp)
     lstat("./temp2", &statbuf);
     stat("./temp2", &statbuf);
 
+    remove("./temp3");
     remove("./temp2");
     rmdir("./tempdir");
 

@@ -1,8 +1,8 @@
-// #include <bits/types/FILE.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <unistd.h>
 
 void checkOuputEnv(void) __attribute__((constructor));
 void _exit() __attribute__((destructor));
@@ -22,6 +22,8 @@ typedef struct dirent *(*fp_readdir_t)(DIR *dirp);
 */
 // int creat(const char *path, mode_t mode);
 typedef int (*fp_creat_t)(const char *path, mode_t mode);
+// int open(const char *pathname, int flags, mode_t mode);
+typedef int (*fp_open_t)(const char *pathname, int flags, mode_t mode);
 
 /*
     stdio.h(P)
@@ -86,8 +88,6 @@ typedef ssize_t (*fp_pwrite_t)(int fildes, const void *buf, size_t nbyte, off_t 
 /*
     sys_stat.h(7POSIX)
 */
-// int open(const char *pathname, int flags, mode_t mode);
-typedef int (*fp_open_t)(const char *pathname, int flags, mode_t mode);
 // int chmod(const char *path, mode_t mode);
 typedef int (*fp_chmod_t)(const char *path, mode_t mode);
 // int mkdir(const char *path, mode_t mode);

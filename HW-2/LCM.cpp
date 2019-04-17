@@ -42,13 +42,20 @@ std::string getPathByFd(int fd)
         return "\"<STDERR>\"";
     std::string fdpath = "/proc/self/fd/" + std::to_string(fd);
     fp_readlink_t org_readlink = (fp_readlink_t)dlsym(originalhandler, "readlink");
-    char path[10000];
+    char path[4096];
+    char cwd[4096];
+    getcwd(cwd, sizeof(cwd));
     int n = org_readlink(fdpath.c_str(), path, sizeof(path));
     if (n < 0)
         return std::to_string(fd);
     else
         path[n] = '\0';
-    return "\"" + std::string(path) + "\"";
+    std::string str_path = std::string(path);
+    size_t start_pos = str_path.find(std::string(cwd));
+    if (start_pos != std::string::npos)
+        str_path.replace(start_pos, std::string(cwd).length(), ".");
+
+    return "\"" + str_path + "\"";
 }
 
 extern "C"
@@ -81,7 +88,7 @@ extern "C"
         if (result)
             org_fprintf(output, "# %s(%s) = \"%s\"\n", __func__, path.c_str(), result->d_name);
         else
-            org_fprintf(output, "# %s(%s) = %p\n", __func__, path.c_str(), result);
+            org_fprintf(output, "# %s(%s) = %s\n", __func__, path.c_str(), "NULL");
 
         return result;
     }
@@ -93,6 +100,19 @@ extern "C"
         fp_creat_t org_creat = (fp_creat_t)dlsym(originalhandler, "creat");
         int result = org_creat(path, mode);
         org_fprintf(output, "# %s(\"%s\", %08o) = %d\n", __func__, path, mode, result);
+        return result;
+    }
+    int open(const char *pathname, int flags, mode_t mode)
+    {
+        fp_open_t org_open = (fp_open_t)dlsym(originalhandler, "open");
+
+        int result;
+        result = org_open(pathname, flags, mode);
+        if (((flags)&0100) != 0 || ((flags)&020000000) == 020000000)
+            org_fprintf(output, "# %s(\"%s\", 0x%x, %05o) = %d\n", __func__, pathname, flags, mode, result);
+        else
+            org_fprintf(output, "# %s(\"%s\", 0x%x) = %d\n", __func__, pathname, flags, result);
+
         return result;
     }
 
@@ -114,6 +134,7 @@ extern "C"
         org_fprintf(output, "# %s(%s) = %d\n", __func__, path.c_str(), result);
         return result;
     }
+
     size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
     {
         std::string path = getPathByFd(fileno(stream));
@@ -177,7 +198,7 @@ extern "C"
         std::string path = getPathByFd(fileno(stream));
         fp_fgets_t org_fgets = (fp_fgets_t)dlsym(originalhandler, "fgets");
         char *result = org_fgets(s, size, stream);
-        org_fprintf(output, "# %s(\"%s\", %d, %s) = %c\n", __func__, s, size, path.c_str(), result);
+        org_fprintf(output, "# %s(\"%s\", %d, %s) = %p\n", __func__, s, size, path.c_str(), result);
         return result;
     }
 
@@ -287,17 +308,6 @@ extern "C"
     /*
         sys_stat.h(7POSIX)
     */
-    int open(const char *pathname, int flags, mode_t mode)
-    {
-        fp_open_t org_open = (fp_open_t)dlsym(originalhandler, "open");
-
-        int result;
-        result = org_open(pathname, flags, mode);
-        org_fprintf(output, "# %s(\"%s\", 0x%x) = %d\n", __func__, pathname, flags, result);
-        //TBD
-
-        return result;
-    }
     int chmod(const char *path, mode_t mode)
     {
         fp_chmod_t org_chmod = (fp_chmod_t)dlsym(originalhandler, "chmod");

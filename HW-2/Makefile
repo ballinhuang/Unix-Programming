@@ -14,3 +14,4 @@ testall:
 	gcc -o test test.c
 	MONITOR_OUTPUT=./lsdev.log LD_PRELOAD=$(PRELOAD) ./test > /dev/null
 	rm test
+	cat lsdev.log
