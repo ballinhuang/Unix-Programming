@@ -8,8 +8,9 @@ TESTCFLAGS = -g -Wall -fno-stack-protector -nostdlib -I. -I.. -DUSEMINI
 LDFLAGS = -m elf_x86_64 --dynamic-linker /lib64/ld-linux-x86-64.so.2
 
 PROGS	= libmini.so start.o
+TESTS = cat1 alarm1 alarm2
 
-all: $(PROGS)
+all: $(PROGS) 
 
 %.o: %.asm
 	$(ASM64) $< -o $@
@@ -23,9 +24,22 @@ libmini.so: libmini64.o libmini.o
 cat1: cat1.c
 	$(CC) -c $(TESTCFLAGS) $<
 	$(LD) $(LDFLAGS) -o $@ start.o $@.o -L. -L.. -lmini
+	rm $@.o
 	LD_LIBRARY_PATH=. ./$@
-	rm $@
+
+alarm1: alarm1.c
+	$(CC) -c $(TESTCFLAGS) $<
+	$(LD) $(LDFLAGS) -o $@ start.o $@.o -L. -L.. -lmini
+	rm $@.o
+	LD_LIBRARY_PATH=. ./$@
+
+alarm2: alarm2.c
+	$(CC) -c $(TESTCFLAGS) $<
+	$(LD) $(LDFLAGS) -o $@ start.o $@.o -L. -L.. -lmini
+	rm $@.o
+	LD_LIBRARY_PATH=. ./$@
 
 clean:
-	rm *.o
-	rm *.so
+	rm -f $(TESTS)
+	rm -f *.o
+	rm -f *.so
