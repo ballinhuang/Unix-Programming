@@ -23,7 +23,10 @@ int main(int argc, char *argv[], char **envp)
     DIR *d;
     mkdir("./tempdir", 0777);
     d = opendir("./tempdir");
-    readdir(d);
+    rename("./tempdir", "./tempdir2");
+    struct dirent *ptr;
+    while ((ptr = readdir(d)) != NULL)
+        ;
     closedir(d);
 
     FILE *file;
@@ -43,7 +46,7 @@ int main(int argc, char *argv[], char **envp)
     write(fd, buffer, 1);
     close(fd);
 
-    chdir("./tempdir");
+    chdir("./tempdir2");
     chdir("..");
     chown("./temp2", 1000, 1000);
     chmod("./temp2", 0777);
@@ -65,7 +68,7 @@ int main(int argc, char *argv[], char **envp)
 
     remove("./temp3");
     remove("./temp2");
-    rmdir("./tempdir");
+    rmdir("./tempdir2");
 
     return 0;
 }
