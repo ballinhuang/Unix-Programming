@@ -37,6 +37,38 @@ int sigpending(sigset_t *set)
 	WRAPPER_RETval(ssize_t);
 }
 
+long sigaction(int how, struct sigaction *nact, struct sigaction *oact)
+{
+	struct sigaction_kernel nact_kernel;
+	struct sigaction_kernel oact_kernel;
+	bzero(&nact_kernel, sizeof(nact_kernel));
+	bzero(&oact_kernel, sizeof(oact_kernel));
+
+	nact_kernel.sa_handler = nact->sa_handler;
+	nact_kernel.sa_flags = nact->sa_flags;
+	nact_kernel.sa_flags |= SA_RESTORER;
+	nact_kernel.sa_restorer = (sigrestore_t)__myrt;
+	nact_kernel.sa_mask = nact->sa_mask;
+
+	long ret = sys_rt_sigaction(how, &nact_kernel, &oact_kernel, sizeof(sigset_t));
+
+	oact->sa_handler = oact_kernel.sa_handler;
+	oact->sa_flags = oact_kernel.sa_flags;
+	oact->sa_restorer = oact_kernel.sa_restorer;
+	oact->sa_mask = oact_kernel.sa_mask;
+
+	WRAPPER_RETval(ssize_t);
+}
+
+sighandler_t signal(int s, sighandler_t h)
+{
+	struct sigaction act, aold;
+	bzero(&act, sizeof(act));
+	act.sa_handler = h;
+	sigaction(s, &act, &aold);
+	return aold.sa_handler;
+}
+
 ssize_t read(int fd, char *buf, size_t count)
 {
 	long ret = sys_read(fd, buf, count);

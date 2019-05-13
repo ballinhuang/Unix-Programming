@@ -25,7 +25,9 @@ extern	errno
 	gensys   9, mmap
 	gensys  10, mprotect
 	gensys  11, munmap
+    gensys  13, rt_sigaction
     gensys  14, rt_sigprocmask
+    gensys  15, rt_sigreturn
 	gensys  22, pipe
 	gensys  32, dup
 	gensys  33, dup2
@@ -104,3 +106,11 @@ sleep_quit:
 	add	rsp, 32
 	ret
 
+
+    global __myrt:function
+__myrt:
+	mov rax, 15
+	syscall
+	ret
+
+	

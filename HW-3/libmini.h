@@ -27,6 +27,24 @@ typedef struct
 	unsigned long sig[_NSIG_WORDS];
 } sigset_t;
 
+typedef void signalfn_t(int);
+typedef signalfn_t *sighandler_t;
+
+typedef void restorefn_t(void);
+typedef restorefn_t *sigrestore_t;
+
+#define SIG_DFL ((sighandler_t)0)  /* default signal handling */
+#define SIG_IGN ((sighandler_t)1)  /* ignore signal */
+#define SIG_ERR ((sighandler_t)-1) /* error return from signal */
+
+struct sigaction_kernel
+{
+	sighandler_t sa_handler;
+	unsigned int sa_flags;
+	sigrestore_t sa_restorer;
+	sigset_t sa_mask; /* mask last for extensibility */
+};
+
 struct sigaction
 {
 	void (*sa_handler)(int);
@@ -35,12 +53,6 @@ struct sigaction
 	unsigned long sa_flags;
 	void (*sa_restorer)(void);
 };
-
-#define SIG_DFL ((__sighandler_t)0)  /* default signal handling */
-#define SIG_IGN ((__sighandler_t)1)  /* ignore signal */
-#define SIG_ERR ((__sighandler_t)-1) /* error return from signal */
-
-typedef char *__sighandler_t;
 
 typedef struct jmp_buf_t
 {
@@ -176,6 +188,10 @@ typedef struct jmp_buf_t
 #define SA_NODEFER 0x40000000   /* Don't automatically block the signal when \
 				   its handler is being executed.  */
 #define SA_RESETHAND 0x80000000 /* Reset to SIG_DFL on entry to handler.  */
+#define SA_RESTORER 0x04000000
+
+#define SA_NOMASK SA_NODEFER
+#define SA_ONESHOT SA_RESETHAND
 
 #define SIG_BLOCK 0   /* Block signals.  */
 #define SIG_UNBLOCK 1 /* Unblock signals.  */
@@ -237,6 +253,8 @@ long sys_getegid();
 long sys_alarm(unsigned int seconds);
 long sys_rt_sigprocmask(int how, sigset_t *set, sigset_t *oset, size_t sigsetsize);
 long sys_rt_sigpending(sigset_t *set, size_t sigsetsize);
+long sys_rt_sigreturn(unsigned long __unused);
+long sys_rt_sigaction(int, const struct sigaction_kernel *, struct sigaction_kernel *, size_t);
 
 /* wrappers */
 ssize_t read(int fd, char *buf, size_t count);
@@ -272,7 +290,7 @@ int setuid(uid_t uid);
 int setgid(gid_t gid);
 uid_t geteuid();
 gid_t getegid();
-
+void __myrt();
 /* extend */
 
 unsigned int alarm(unsigned int seconds);
@@ -312,7 +330,8 @@ static inline int sigismember(sigset_t *set, int _sig)
 int sigprocmask(int how, sigset_t *set, sigset_t *oldset);
 int sigpending(sigset_t *set);
 int sigismember(sigset_t *set, int _sig);
-
+long sigaction(int how, struct sigaction *nact, struct sigaction *oact);
+sighandler_t signal(int signum, sighandler_t handler);
 /* extend end */
 
 void bzero(void *s, size_t size);
