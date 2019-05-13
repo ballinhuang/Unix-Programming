@@ -108,75 +108,58 @@ sleep_quit:
 
 
     global __myrt:function
+
+
+
+; EXTEND
 __myrt:
 	mov rax, 15
 	syscall
 	ret
 
-	
-sigsetsize equ 8
-struc Jmpbuf
-	.rbx:  resq 1
-	.rsp:  resq 1
-	.rbp:  resq 1
-	.r12:  resq 1
-	.r13:  resq 1
-	.r14:  resq 1
-	.r15:  resq 1
-	.rip:  resq 1
-	.mask: resq 1
-endstruc
-
-
 	global setjmp:function
 setjmp:
-	mov QWORD [rdi+Jmpbuf.rbx], rbx
-	mov QWORD [rdi+Jmpbuf.rsp], rsp
-	mov QWORD [rdi+Jmpbuf.rbp], rbp
-	mov QWORD [rdi+Jmpbuf.r12], r12
-	mov QWORD [rdi+Jmpbuf.r13], r13
-	mov QWORD [rdi+Jmpbuf.r14], r14
-	mov QWORD [rdi+Jmpbuf.r15], r15
-
+	mov [rdi], rbx
+	mov [rdi+8], rsp
+	mov [rdi+16], rbp
+	mov [rdi+24], r12
+	mov [rdi+32], r13
+	mov [rdi+40], r14
+	mov [rdi+48], r15
 	mov rax, QWORD [rsp]
-	mov QWORD [rdi+Jmpbuf.rip], rax
+	mov QWORD [rdi+56], rax
 
-	; save mask
-	lea rdi, [rdi+Jmpbuf.mask]
-	mov rsi, 0 ; nset = null
-	mov rdi, 1 ;BLOCK but ignored
-	call sigprocmask
+	lea rdx, [rdi+64]
+	mov rsi, 0
+	mov rdi, 0
+	call	sigprocmask
 
-	xor rax, rax
+	xor	rax, rax
 	ret
-
 
 	global longjmp:function
 longjmp:
-	mov rsp, QWORD [rdi+Jmpbuf.rsp]
+	mov rbx, [rdi]
+	mov rsp, [rdi+8]
+	mov rbp, [rdi+16]
+	mov r12, [rdi+24]
+	mov r13, [rdi+32]
+	mov r14, [rdi+40]
+	mov r15, [rdi+48]
 	pop rax
-	mov rax, QWORD [rdi+Jmpbuf.rip]
+	mov rax, [rdi+56]
 	push rax
 
-	mov rbx, QWORD [rdi+Jmpbuf.rbx]
-	mov rbp, QWORD [rdi+Jmpbuf.rbp]
-	mov r12, QWORD [rdi+Jmpbuf.r12]
-	mov r13, QWORD [rdi+Jmpbuf.r13]
-	mov r14, QWORD [rdi+Jmpbuf.r14]
-	mov r15, QWORD [rdi+Jmpbuf.r15]
-
-	; r15 as tmp
-	xor rdx, rdx  ; oset = null
-	lea rsi, [rdi+Jmpbuf.mask] ; nset
-	mov rdi, 2 ; set mask
+	mov rdx, 0
+	lea rsi, [rdi+64]
+	mov rdi, 0
 	call sigprocmask
-	
+
 	mov rax, rsi
 	ret
 
+	global sigprocmask:function
 sigprocmask:
-	mov r10, sigsetsize
-	mov rax, 14
-	syscall
-
+	mov rcx, 8
+	call sys_rt_sigprocmask
 	ret

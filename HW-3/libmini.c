@@ -19,18 +19,14 @@ long errno;
 	}                        \
 	return ((type)ret);
 
+/************ EXTEND START ************/
+
 unsigned int alarm(unsigned int seconds)
 {
 	long ret = sys_alarm(seconds);
 	WRAPPER_RETval(ssize_t);
 }
-/*
-int sigprocmask(int how, sigset_t *set, sigset_t *oldset)
-{
-	long ret = sys_rt_sigprocmask(how, set, oldset, sizeof(sigset_t));
-	WRAPPER_RETval(ssize_t);
-}
-*/
+
 int sigpending(sigset_t *set)
 {
 	long ret = sys_rt_sigpending(set, sizeof(sigset_t));
@@ -68,25 +64,9 @@ sighandler_t signal(int s, sighandler_t h)
 	sigaction(s, &act, &aold);
 	return aold.sa_handler;
 }
-/*
-int setjmp(jmp_buf env)
-{
-	register int RBX asm("rbx");
-	register int RSP asm("rsp");
-	register int RBP asm("rbp");
-	register int R12 asm("r12");
-	register int R13 asm("r13");
-	register int R14 asm("r14");
-	register int R15 asm("r15");
-	env[0].reg[0] = RBX;
-	env[0].reg[1] = RSP;
-	env[0].reg[2] = RBP;
-	env[0].reg[3] = R12;
-	env[0].reg[4] = R13;
-	env[0].reg[5] = R14;
-	env[0].reg[6] = R15;
-}
-*/
+
+/************ EXTEND END ************/
+
 ssize_t read(int fd, char *buf, size_t count)
 {
 	long ret = sys_read(fd, buf, count);

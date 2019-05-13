@@ -13,6 +13,8 @@ extern long errno;
 
 #define NULL ((void *)0)
 
+/************ EXTEND START ************/
+
 /* from /include/uapi/asm-generic/unistd.h */
 #define __NR_alarm 1059
 #define __ARCH_WANT_SYS_ALARM
@@ -59,6 +61,50 @@ typedef struct jmp_buf_t
 	long long reg[8];
 	sigset_t mask;
 } jmp_buf[1];
+
+unsigned int alarm(unsigned int seconds);
+static inline void sigemptyset(sigset_t *set)
+{
+	switch (_NSIG_WORDS)
+	{
+	default:
+		for (int i = 0; i < sizeof(sigset_t); i++)
+			set->sig[i] = 0;
+		break;
+	case 2:
+		set->sig[1] = 0;
+	case 1:
+		set->sig[0] = 0;
+		break;
+	}
+}
+static inline void sigaddset(sigset_t *set, int _sig)
+{
+	unsigned long sig = _sig - 1;
+	if (_NSIG_WORDS == 1)
+		set->sig[0] |= 1UL << sig;
+	else
+		set->sig[sig / _NSIG_BPW] |= 1UL << (sig % _NSIG_BPW);
+}
+static inline int sigismember(sigset_t *set, int _sig)
+{
+	unsigned long sig = _sig - 1;
+	if (_NSIG_WORDS == 1)
+		return 1 & (set->sig[0] >> sig);
+	else
+		return 1 & (set->sig[sig / _NSIG_BPW] >> (sig % _NSIG_BPW));
+}
+
+int sigprocmask(int how, sigset_t *set, sigset_t *oldset);
+int sigpending(sigset_t *set);
+int sigismember(sigset_t *set, int _sig);
+long sigaction(int how, struct sigaction *nact, struct sigaction *oact);
+sighandler_t signal(int signum, sighandler_t handler);
+void __myrt();
+int setjmp(jmp_buf env);
+void longjmp(jmp_buf env, int val);
+
+/************ EXTEND END ************/
 
 /* from /usr/include/asm-generic/fcntl.h */
 #define O_ACCMODE 00000003
@@ -290,52 +336,6 @@ int setuid(uid_t uid);
 int setgid(gid_t gid);
 uid_t geteuid();
 gid_t getegid();
-/* extend */
-
-unsigned int alarm(unsigned int seconds);
-
-static inline void sigemptyset(sigset_t *set)
-{
-	switch (_NSIG_WORDS)
-	{
-	default:
-		for (int i = 0; i < sizeof(sigset_t); i++)
-			set->sig[i] = 0;
-		break;
-	case 2:
-		set->sig[1] = 0;
-	case 1:
-		set->sig[0] = 0;
-		break;
-	}
-}
-static inline void sigaddset(sigset_t *set, int _sig)
-{
-	unsigned long sig = _sig - 1;
-	if (_NSIG_WORDS == 1)
-		set->sig[0] |= 1UL << sig;
-	else
-		set->sig[sig / _NSIG_BPW] |= 1UL << (sig % _NSIG_BPW);
-}
-static inline int sigismember(sigset_t *set, int _sig)
-{
-	unsigned long sig = _sig - 1;
-	if (_NSIG_WORDS == 1)
-		return 1 & (set->sig[0] >> sig);
-	else
-		return 1 & (set->sig[sig / _NSIG_BPW] >> (sig % _NSIG_BPW));
-}
-
-int sigprocmask(int how, sigset_t *set, sigset_t *oldset);
-int sigpending(sigset_t *set);
-int sigismember(sigset_t *set, int _sig);
-long sigaction(int how, struct sigaction *nact, struct sigaction *oact);
-sighandler_t signal(int signum, sighandler_t handler);
-void __myrt();
-int setjmp(jmp_buf env);
-void longjmp(jmp_buf env, int val);
-
-/* extend end */
 
 void bzero(void *s, size_t size);
 size_t strlen(const char *s);
