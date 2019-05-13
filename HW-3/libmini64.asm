@@ -126,7 +126,7 @@ setjmp:
 	mov [rdi+32], r13
 	mov [rdi+40], r14
 	mov [rdi+48], r15
-	mov rax, QWORD [rsp]
+	mov rax, [rsp]
 	mov QWORD [rdi+56], rax
 
 	lea rdx, [rdi+64]
