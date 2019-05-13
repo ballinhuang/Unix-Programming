@@ -17,7 +17,7 @@ extern	errno
 	section .data
 
 	section .text
-
+ 
 	gensys   0, read
 	gensys   1, write
 	gensys   2, open
@@ -107,11 +107,11 @@ sleep_quit:
 	ret
 
 
-    global __myrt:function
-
+    
 
 
 ; EXTEND
+	global __myrt:function
 __myrt:
 	mov rax, 15
 	syscall
