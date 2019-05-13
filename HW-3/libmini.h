@@ -290,7 +290,6 @@ int setuid(uid_t uid);
 int setgid(gid_t gid);
 uid_t geteuid();
 gid_t getegid();
-void __myrt();
 /* extend */
 
 unsigned int alarm(unsigned int seconds);
@@ -332,6 +331,10 @@ int sigpending(sigset_t *set);
 int sigismember(sigset_t *set, int _sig);
 long sigaction(int how, struct sigaction *nact, struct sigaction *oact);
 sighandler_t signal(int signum, sighandler_t handler);
+void __myrt();
+int setjmp(jmp_buf env);
+void longjmp(jmp_buf env, int val);
+
 /* extend end */
 
 void bzero(void *s, size_t size);

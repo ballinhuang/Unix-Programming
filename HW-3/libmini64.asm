@@ -114,3 +114,69 @@ __myrt:
 	ret
 
 	
+sigsetsize equ 8
+struc Jmpbuf
+	.rbx:  resq 1
+	.rsp:  resq 1
+	.rbp:  resq 1
+	.r12:  resq 1
+	.r13:  resq 1
+	.r14:  resq 1
+	.r15:  resq 1
+	.rip:  resq 1
+	.mask: resq 1
+endstruc
+
+
+	global setjmp:function
+setjmp:
+	mov QWORD [rdi+Jmpbuf.rbx], rbx
+	mov QWORD [rdi+Jmpbuf.rsp], rsp
+	mov QWORD [rdi+Jmpbuf.rbp], rbp
+	mov QWORD [rdi+Jmpbuf.r12], r12
+	mov QWORD [rdi+Jmpbuf.r13], r13
+	mov QWORD [rdi+Jmpbuf.r14], r14
+	mov QWORD [rdi+Jmpbuf.r15], r15
+
+	mov rax, QWORD [rsp]
+	mov QWORD [rdi+Jmpbuf.rip], rax
+
+	; save mask
+	lea rdi, [rdi+Jmpbuf.mask]
+	mov rsi, 0 ; nset = null
+	mov rdi, 1 ;BLOCK but ignored
+	call sigprocmask
+
+	xor rax, rax
+	ret
+
+
+	global longjmp:function
+longjmp:
+	mov rsp, QWORD [rdi+Jmpbuf.rsp]
+	pop rax
+	mov rax, QWORD [rdi+Jmpbuf.rip]
+	push rax
+
+	mov rbx, QWORD [rdi+Jmpbuf.rbx]
+	mov rbp, QWORD [rdi+Jmpbuf.rbp]
+	mov r12, QWORD [rdi+Jmpbuf.r12]
+	mov r13, QWORD [rdi+Jmpbuf.r13]
+	mov r14, QWORD [rdi+Jmpbuf.r14]
+	mov r15, QWORD [rdi+Jmpbuf.r15]
+
+	; r15 as tmp
+	xor rdx, rdx  ; oset = null
+	lea rsi, [rdi+Jmpbuf.mask] ; nset
+	mov rdi, 2 ; set mask
+	call sigprocmask
+	
+	mov rax, rsi
+	ret
+
+sigprocmask:
+	mov r10, sigsetsize
+	mov rax, 14
+	syscall
+
+	ret
