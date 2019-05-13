@@ -302,37 +302,3 @@ void perror(const char *prefix)
 	write(2, "\n", 1);
 	return;
 }
-
-void sigemptyset(sigset_t *set)
-{
-	switch (_NSIG_WORDS)
-	{
-	default:
-		for (int i = 0; i < sizeof(sigset_t); i++)
-			set->sig[i] = 0;
-		break;
-	case 2:
-		set->sig[1] = 0;
-	case 1:
-		set->sig[0] = 0;
-		break;
-	}
-}
-
-void sigaddset(sigset_t *set, int _sig)
-{
-	unsigned long sig = _sig - 1;
-	if (_NSIG_WORDS == 1)
-		set->sig[0] |= 1UL << sig;
-	else
-		set->sig[sig / _NSIG_BPW] |= 1UL << (sig % _NSIG_BPW);
-}
-
-int sigismember(sigset_t *set, int _sig)
-{
-	unsigned long sig = _sig - 1;
-	if (_NSIG_WORDS == 1)
-		return 1 & (set->sig[0] >> sig);
-	else
-		return 1 & (set->sig[sig / _NSIG_BPW] >> (sig % _NSIG_BPW));
-}

@@ -27,6 +27,27 @@ typedef struct
 	unsigned long sig[_NSIG_WORDS];
 } sigset_t;
 
+struct sigaction
+{
+	void (*sa_handler)(int);
+	void (*sa_sigaction)(int, void *, void *);
+	sigset_t sa_mask;
+	unsigned long sa_flags;
+	void (*sa_restorer)(void);
+};
+
+#define SIG_DFL ((__sighandler_t)0)  /* default signal handling */
+#define SIG_IGN ((__sighandler_t)1)  /* ignore signal */
+#define SIG_ERR ((__sighandler_t)-1) /* error return from signal */
+
+typedef char *__sighandler_t;
+
+typedef struct jmp_buf_t
+{
+	long long reg[8];
+	sigset_t mask;
+} jmp_buf[1];
+
 /* from /usr/include/asm-generic/fcntl.h */
 #define O_ACCMODE 00000003
 #define O_RDONLY 00000000
@@ -252,12 +273,47 @@ int setgid(gid_t gid);
 uid_t geteuid();
 gid_t getegid();
 
+/* extend */
+
 unsigned int alarm(unsigned int seconds);
-void sigemptyset(sigset_t *set);
-void sigaddset(sigset_t *set, int _sig);
+
+static inline void sigemptyset(sigset_t *set)
+{
+	switch (_NSIG_WORDS)
+	{
+	default:
+		for (int i = 0; i < sizeof(sigset_t); i++)
+			set->sig[i] = 0;
+		break;
+	case 2:
+		set->sig[1] = 0;
+	case 1:
+		set->sig[0] = 0;
+		break;
+	}
+}
+static inline void sigaddset(sigset_t *set, int _sig)
+{
+	unsigned long sig = _sig - 1;
+	if (_NSIG_WORDS == 1)
+		set->sig[0] |= 1UL << sig;
+	else
+		set->sig[sig / _NSIG_BPW] |= 1UL << (sig % _NSIG_BPW);
+}
+static inline int sigismember(sigset_t *set, int _sig)
+{
+	unsigned long sig = _sig - 1;
+	if (_NSIG_WORDS == 1)
+		return 1 & (set->sig[0] >> sig);
+	else
+		return 1 & (set->sig[sig / _NSIG_BPW] >> (sig % _NSIG_BPW));
+}
+
 int sigprocmask(int how, sigset_t *set, sigset_t *oldset);
 int sigpending(sigset_t *set);
 int sigismember(sigset_t *set, int _sig);
+
+/* extend end */
 
 void bzero(void *s, size_t size);
 size_t strlen(const char *s);
