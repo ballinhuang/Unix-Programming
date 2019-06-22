@@ -1,7 +1,7 @@
 CXX	= g++
-CFLAGS	= -Wall -g
+CFLAGS	= -lelf -Wall -g
  
-PROGS	= guess autodbg sdb
+PROGS	= guess autodbg sdb elfdemo
 
 all: $(PROGS)
 
@@ -9,10 +9,15 @@ all: $(PROGS)
 	$(CXX) -c $(CFLAGS) $<
 
 autodbg: autodbg.o ptools.o
-	$(CXX) -o $@ $^ $(LDFLAGS)
+	$(CXX) -o $@ $^ $(CFLAGS)
+
+elfdemo: elfdemo.o elftool.o
+
+sdb: sdb.o ptools.o elftool.o
+	$(CXX) -o $@ $^ $(CFLAGS)
 
 %: %.o
-	$(CC) -o $@ $^ $(LDFLAGS)
+	$(CXX) -o $@ $^ $(CFLAGS)
 
 clean:
 	rm -f *.o *~ $(PROGS)
