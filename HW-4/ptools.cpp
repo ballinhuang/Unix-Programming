@@ -43,12 +43,37 @@ int load_maps(pid_t pid, map<range_t, map_entry_t> &loaded)
 		}
 		m.name = basename(args[5]);
 		m.perm = 0;
+		m.str_perm = "";
 		if (args[1][0] == 'r')
+		{
 			m.perm |= 0x04;
+			m.str_perm += "r";
+		}
+		else
+		{
+			m.str_perm += "-";
+		}
+
 		if (args[1][1] == 'w')
+		{
 			m.perm |= 0x02;
+			m.str_perm += "w";
+		}
+		else
+		{
+			m.str_perm += "-";
+		}
+
 		if (args[1][2] == 'x')
+		{
 			m.perm |= 0x01;
+			m.str_perm += "x";
+		}
+		else
+		{
+			m.str_perm += "-";
+		}
+
 		m.offset = strtol(args[2], NULL, 16);
 		//printf("XXX: %lx-%lx %04o %s\n", m.range.begin, m.range.end, m.perm, m.name.c_str());
 		loaded[m.range] = m;

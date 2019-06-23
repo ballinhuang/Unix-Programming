@@ -13,6 +13,7 @@ typedef struct map_entry_s
 {
 	range_t range;
 	int perm;
+	std::string str_perm;
 	long offset;
 	std::string name;
 } map_entry_t;

@@ -126,12 +126,10 @@ void vmmap()
         {
             for (mi = m.begin(); mi != m.end(); mi++)
             {
-                printf("## %lx-%lx %04o %s\n",
+                printf("%016lx-%016lx %s %-9ld %s\n",
                        mi->second.range.begin, mi->second.range.end,
-                       mi->second.perm, mi->second.name.c_str());
+                       mi->second.str_perm.c_str(), mi->second.offset, mi->second.name.c_str());
             }
-            cout << "## " << m.size() << " map entries loaded.\n"
-                 << endl;
         }
     }
 }
@@ -151,6 +149,97 @@ void start()
     {
         cout << "** pid " << child << endl;
         status = RUNNING;
+    }
+}
+
+void getreg(string regname)
+{
+    struct user_regs_struct regs;
+    if (ptrace(PTRACE_GETREGS, child, 0, &regs) == 0)
+    {
+        if (regname == "ALL")
+        {
+            printf("RAX %-18llxRBX %-18llxRCX %-18llxRDX %-18llx\n", regs.rax, regs.rbx, regs.rcx, regs.rdx);
+            printf("R8  %-18llxR9  %-18llxR10 %-18llxR11 %-18llx\n", regs.r8, regs.r9, regs.r10, regs.r11);
+            printf("R12 %-18llxR13 %-18llxR14 %-18llxR15 %-18llx\n", regs.r12, regs.r13, regs.r14, regs.r15);
+            printf("RDI %-18llxRSI %-18llxRBP %-18llxRSP %-18llx\n", regs.rdi, regs.rsi, regs.rbp, regs.rsp);
+            printf("RIP %-18llxFLAGS %016llx\n", regs.rip, regs.eflags);
+        }
+        else
+        {
+            if (regname == "rip")
+            {
+                printf("rip = %lld (0x%llx)\n", regs.rip, regs.rip);
+            }
+            else if (regname == "rax")
+            {
+                printf("rax = %lld (0x%llx)\n", regs.rax, regs.rax);
+            }
+            else if (regname == "rbx")
+            {
+                printf("rbx = %lld (0x%llx)\n", regs.rbx, regs.rbx);
+            }
+            else if (regname == "rcx")
+            {
+                printf("rcx = %lld (0x%llx)\n", regs.rcx, regs.rcx);
+            }
+            else if (regname == "rdx")
+            {
+                printf("rdx = %lld (0x%llx)\n", regs.rdx, regs.rdx);
+            }
+            else if (regname == "r8")
+            {
+                printf("r8 = %lld (0x%llx)\n", regs.r8, regs.r8);
+            }
+            else if (regname == "r9")
+            {
+                printf("r9 = %lld (0x%llx)\n", regs.r9, regs.r9);
+            }
+            else if (regname == "r10")
+            {
+                printf("r10 = %lld (0x%llx)\n", regs.r10, regs.r10);
+            }
+            else if (regname == "r11")
+            {
+                printf("r11 = %lld (0x%llx)\n", regs.r11, regs.r11);
+            }
+            else if (regname == "r12")
+            {
+                printf("r12 = %lld (0x%llx)\n", regs.r12, regs.r12);
+            }
+            else if (regname == "r13")
+            {
+                printf("r13 = %lld (0x%llx)\n", regs.r13, regs.r13);
+            }
+            else if (regname == "r14")
+            {
+                printf("r14 = %lld (0x%llx)\n", regs.r14, regs.r14);
+            }
+            else if (regname == "r15")
+            {
+                printf("r15 = %lld (0x%llx)\n", regs.r15, regs.r15);
+            }
+            else if (regname == "rdi")
+            {
+                printf("rdi = %lld (0x%llx)\n", regs.rdi, regs.rdi);
+            }
+            else if (regname == "rsi")
+            {
+                printf("rsi = %lld (0x%llx)\n", regs.rsi, regs.rsi);
+            }
+            else if (regname == "rbp")
+            {
+                printf("rbp = %lld (0x%llx)\n", regs.rbp, regs.rbp);
+            }
+            else if (regname == "rsp")
+            {
+                printf("rsp = %lld (0x%llx)\n", regs.rsp, regs.rsp);
+            }
+            else if (regname == "eflags")
+            {
+                printf("eflags = %lld (0x%llx)\n", regs.eflags, regs.eflags);
+            }
+        }
     }
 }
 
@@ -237,6 +326,30 @@ int main(int argc, char *argv[])
                 continue;
             }
         }
+        else if (cmd == "get" || cmd == "g")
+        {
+            if (status == RUNNING)
+            {
+                getreg(args[0]);
+            }
+            else
+            {
+                printHelp("get");
+                continue;
+            }
+        }
+        else if (cmd == "getregs")
+        {
+            if (status == RUNNING)
+            {
+                getreg("ALL");
+            }
+            else
+            {
+                printHelp("get");
+                continue;
+            }
+        }
         else if (cmd == "break" || cmd == "b")
         {
             if (status == LOADED || status == RUNNING)
@@ -253,5 +366,5 @@ int main(int argc, char *argv[])
             cout << "bye~" << endl;
             exit(0);
         }
-        }
+    }
 }
