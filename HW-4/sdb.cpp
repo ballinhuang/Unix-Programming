@@ -8,6 +8,9 @@
 #include <sys/user.h>
 #include <iostream>
 #include <cstring>
+#include <string>
+
+#include <capstone/capstone.h>
 
 #include "elftool.h"
 #include "ptools.h"
@@ -23,6 +26,20 @@ string programName = "";
 pid_t child;
 int wait_status;
 long long entry, offset, size;
+unsigned long long disaddr = 0;
+
+#define PEEKSIZE 8
+
+class instruction1
+{
+public:
+    unsigned char bytes[16];
+    int size;
+    string opr, opnd;
+};
+
+static csh cshandle = 0;
+static map<long long, instruction1> instructions;
 
 map<string, string> helpmap = {
     {"break", "break or b [loaded and running]: Setup a break point. If a program is loaded but is not running, the address should be within the range specified by the text segment in the ELF file. When a break point is hit, you have to output a message and indicate the corresponding address and instruction."},
@@ -52,6 +69,62 @@ void printHelp(string type)
     cout << helpmap[type] << endl;
     return;
 }
+
+void print_instruction(long long addr, instruction1 *in)
+{
+    int i;
+    char bytes[128] = "";
+    for (i = 0; i < in->size; i++)
+    {
+        snprintf(&bytes[i * 3], 4, "%2.2x ", in->bytes[i]);
+    }
+    printf("%12llx: %-32s\t%-10s%s\n", addr, bytes, in->opr.c_str(), in->opnd.c_str());
+}
+
+void disassemble()
+{
+    int count;
+    char buf[64] = {0};
+    unsigned long long ptr = disaddr;
+    cs_insn *insn;
+    map<long long, instruction1>::iterator mi; // from memory addr to instruction
+
+    for (ptr = disaddr; ptr < disaddr + sizeof(buf); ptr += PEEKSIZE)
+    {
+        long long peek;
+        errno = 0;
+        peek = ptrace(PTRACE_PEEKTEXT, child, ptr, NULL);
+        if (errno != 0)
+            break;
+        memcpy(&buf[ptr - disaddr], &peek, PEEKSIZE);
+    }
+
+    if ((count = cs_disasm(cshandle, (uint8_t *)buf, disaddr - ptr, disaddr, 0, &insn)) > 0)
+    {
+        int i;
+        for (i = 0; i < count; i++)
+        {
+            instruction1 in;
+            in.size = insn[i].size;
+            in.opr = insn[i].mnemonic;
+            in.opnd = insn[i].op_str;
+            memcpy(in.bytes, insn[i].bytes, insn[i].size);
+            instructions[insn[i].address] = in;
+        }
+        cs_free(insn, count);
+    }
+
+    map<long long, instruction1>::iterator iter = instructions.find(disaddr);
+    for (int i = 0; iter != instructions.end() && i < 10; ++iter, ++i)
+        print_instruction(iter->first, &iter->second);
+
+    disaddr = iter->first;
+    return;
+}
+
+/*
+    cmd
+*/
 
 void load(string path)
 {
@@ -119,9 +192,7 @@ void vmmap()
     {
         map<range_t, map_entry_t> m;
         map<range_t, map_entry_t>::iterator mi;
-        if (waitpid(child, &wait_status, 0) < 0)
-            errquit("waitpid");
-        ptrace(PTRACE_SETOPTIONS, child, 0, PTRACE_O_EXITKILL);
+        
         if (load_maps(child, m) > 0)
         {
             for (mi = m.begin(); mi != m.end(); mi++)
@@ -247,6 +318,16 @@ void getreg(string regname)
     }
 }
 
+void disasm()
+{
+    if (disaddr == 0)
+    {
+        printf("** no addr is given.\n");
+        return;
+    }
+    disassemble();
+}
+
 void run()
 {
     if (status == LOADED)
@@ -258,9 +339,15 @@ void run()
         printf("** program %s is already running.\n", programName.c_str());
     }
     ptrace(PTRACE_CONT, child, 0, 0);
-    waitpid(child, &wait_status, 0);
-    int exitcode = WIFSTOPPED(wait_status);
-    printf("** child process %d terminiated normally (code %d)\n", child, exitcode);
+    int code;
+    while (waitpid(child, &wait_status, 0) > 0)
+    {
+        code = WIFSTOPPED(wait_status);
+        if (code == 0)
+            continue;
+        // break
+    }
+    printf("** child process %d terminiated normally (code %d)\n", child, code);
 }
 
 int main(int argc, char *argv[])
@@ -269,6 +356,8 @@ int main(int argc, char *argv[])
     {
         load(string(argv[1]));
     }
+    if (cs_open(CS_ARCH_X86, CS_MODE_64, &cshandle) != CS_ERR_OK)
+		return -1;
 
     int count = 0;
     size_t pos = 0;
@@ -279,6 +368,8 @@ int main(int argc, char *argv[])
     {
         cout << "sdb> ";
         count = 0;
+        args[0] = "";
+        args[1] = "";
         getline(cin, input);
         while ((pos = input.find(' ')) != std::string::npos)
         {
@@ -385,6 +476,23 @@ int main(int argc, char *argv[])
                 continue;
             }
         }
+        else if (cmd == "disasm" || cmd == "d")
+        {
+            if (status == LOADED || status == RUNNING)
+            {
+                if (args[0] != "")
+                {
+                    sscanf(args[0].substr(args[0].find("0x")).c_str(), "%llx", &disaddr);
+                }
+                disasm();
+            }
+            else
+            {
+                printHelp("disasm");
+                continue;
+            }
+        }
+
         else if (cmd == "break" || cmd == "b")
         {
             if (status == LOADED || status == RUNNING)
