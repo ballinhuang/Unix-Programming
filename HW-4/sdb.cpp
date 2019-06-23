@@ -147,6 +147,10 @@ void start()
     }
     else
     {
+        if (waitpid(child, &wait_status, 0) < 0)
+            errquit("waitpid");
+        ptrace(PTRACE_SETOPTIONS, child, 0, PTRACE_O_EXITKILL);
+
         cout << "** pid " << child << endl;
         status = RUNNING;
     }
@@ -243,6 +247,22 @@ void getreg(string regname)
     }
 }
 
+void run()
+{
+    if (status == LOADED)
+    {
+        start();
+    }
+    else
+    {
+        printf("** program %s is already running.\n", programName.c_str());
+    }
+    ptrace(PTRACE_CONT, child, 0, 0);
+    waitpid(child, &wait_status, 0);
+    int exitcode = WIFSTOPPED(wait_status);
+    printf("** child process %d terminiated normally (code %d)\n", child, exitcode);
+}
+
 int main(int argc, char *argv[])
 {
     if (argc > 1)
@@ -331,6 +351,7 @@ int main(int argc, char *argv[])
             if (status == RUNNING)
             {
                 getreg(args[0]);
+                continue;
             }
             else
             {
@@ -343,10 +364,24 @@ int main(int argc, char *argv[])
             if (status == RUNNING)
             {
                 getreg("ALL");
+                continue;
             }
             else
             {
                 printHelp("get");
+                continue;
+            }
+        }
+        else if (cmd == "run" || cmd == "r")
+        {
+            if (status == LOADED || status == RUNNING)
+            {
+                run();
+                continue;
+            }
+            else
+            {
+                printHelp("run");
                 continue;
             }
         }
