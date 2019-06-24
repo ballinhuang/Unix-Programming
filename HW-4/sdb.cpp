@@ -390,9 +390,19 @@ void setrip(long long addr)
 
     if (addr != 0 && addr != -1)
     {
-        regs.rip = addr;
-        if (ptrace(PTRACE_SETREGS, child, 0, &regs) != 0)
-            errquit("ptrace(SETREGS)");
+        if (regs.rip == addr)
+        {
+            regs.rip = addr - 1;
+            if (ptrace(PTRACE_SETREGS, child, 0, &regs) != 0)
+                errquit("ptrace(SETREGS)");
+        }
+        else
+        {
+            regs.rip = addr;
+            if (ptrace(PTRACE_SETREGS, child, 0, &regs) != 0)
+                errquit("ptrace(SETREGS)");
+            regs.rip -= 1;
+        }
     }
 
     if (next_break != 0)
@@ -450,8 +460,6 @@ void setrip(long long addr)
 
 void cont(string mode)
 {
-    //cout << "count " << endl;
-
     if (mode == "si")
     {
         if (ptrace(PTRACE_SINGLESTEP, child, 0, 0) < 0)
@@ -488,7 +496,7 @@ void cont(string mode)
             if (ptrace(PTRACE_SETREGS, child, 0, &regs) != 0)
                 errquit("ptrace(SETREGS)");
 
-            setrip(regs.rip - 1);
+            setrip(regs.rip);
 
             printf("** breakpoint @       ");
             disassemble(regs.rip - 1, 1);

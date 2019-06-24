@@ -22,3 +22,4 @@ bool operator<(range_t r1, range_t r2);
 int load_maps(pid_t pid, std::map<range_t, map_entry_t> &loaded);
 
 #endif /* __PTOOLS_H__ */
+ 

@@ -1,12 +1,12 @@
 CXX	= g++
-CFLAGS	= -lelf -lcapstone -Wall -g
+CFLAGS	= -lelf -lcapstone -g
 
 PROGS	= sdb
 
 all: $(PROGS)
 
 %.o: %.cpp
-	$(CXX) -c $(CFLAGS) $<
+	$(CXX) -c $(CFLAGS) $< 
 
 sdb: sdb.o ptools.o elftool.o
 	$(CXX) -o $@ $^ $(CFLAGS)
