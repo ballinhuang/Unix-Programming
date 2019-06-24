@@ -26,7 +26,7 @@ string programName = "";
 pid_t child;
 int wait_status;
 long long entry, offset, size;
-unsigned long long disaddr = 0;
+unsigned long long global_disaddr = 0;
 
 #define PEEKSIZE 8
 
@@ -40,6 +40,7 @@ public:
 
 static csh cshandle = 0;
 static map<long long, instruction1> instructions;
+map<long long, unsigned long> breakpoints;
 
 map<string, string> helpmap = {
     {"break", "break or b [loaded and running]: Setup a break point. If a program is loaded but is not running, the address should be within the range specified by the text segment in the ELF file. When a break point is hit, you have to output a message and indicate the corresponding address and instruction."},
@@ -81,8 +82,9 @@ void print_instruction(long long addr, instruction1 *in)
     printf("%12llx: %-32s\t%-10s%s\n", addr, bytes, in->opr.c_str(), in->opnd.c_str());
 }
 
-void disassemble()
+unsigned long long disassemble(unsigned long long disaddr,int dumpcount)
 {
+   
     int count;
     char buf[64] = {0};
     unsigned long long ptr = disaddr;
@@ -115,11 +117,11 @@ void disassemble()
     }
 
     map<long long, instruction1>::iterator iter = instructions.find(disaddr);
-    for (int i = 0; iter != instructions.end() && i < 10; ++iter, ++i)
+    for (int i = 0; iter != instructions.end() && i < dumpcount; ++iter, ++i)
         print_instruction(iter->first, &iter->second);
 
-    disaddr = iter->first;
-    return;
+    
+    return iter->first;
 }
 
 /*
@@ -192,7 +194,7 @@ void vmmap()
     {
         map<range_t, map_entry_t> m;
         map<range_t, map_entry_t>::iterator mi;
-        
+
         if (load_maps(child, m) > 0)
         {
             for (mi = m.begin(); mi != m.end(); mi++)
@@ -320,12 +322,60 @@ void getreg(string regname)
 
 void disasm()
 {
-    if (disaddr == 0)
+    if (global_disaddr == 0)
     {
         printf("** no addr is given.\n");
         return;
     }
-    disassemble();
+    global_disaddr = disassemble(global_disaddr,10);
+}
+
+void breakaddr(string straddr)
+{
+    long long addr;
+    unsigned long code;
+    sscanf(straddr.substr(straddr.find("0x")).c_str(), "%llx", &addr);
+
+    code = ptrace(PTRACE_PEEKTEXT, child, addr, 0);
+    if (ptrace(PTRACE_POKETEXT, child, addr, (code & 0xffffffffffffff00) | 0xcc) != 0)
+        errquit("ptrace(POKETEXT)");
+
+    breakpoints[addr] = code;
+}
+
+void cont()
+{
+    if (ptrace(PTRACE_CONT, child, 0, 0) < 0)
+        errquit("cont failed!");
+    int code;
+    while (waitpid(child, &wait_status, 0) > 0)
+    {
+        struct user_regs_struct regs;
+        code = WIFSTOPPED(wait_status);
+        if (code == 0)
+            continue;
+        if (ptrace(PTRACE_GETREGS, child, 0, &regs) != 0)
+            errquit("ptrace(GETREGS)");
+
+        map<long long, unsigned long>::iterator iter = breakpoints.find(regs.rip - 1);
+        if (iter != breakpoints.end())
+        {
+            /* restore break point */
+            if (ptrace(PTRACE_POKETEXT, child, iter->first, iter->second) != 0)
+                errquit("ptrace(POKETEXT)");
+            /* set registers */
+            regs.rip = regs.rip - 1;
+            regs.rdx = regs.rax;
+            if (ptrace(PTRACE_SETREGS, child, 0, &regs) != 0)
+                errquit("ptrace(SETREGS)");
+        }
+        
+        printf("** breakpoint @       ");
+        disassemble(iter->first,1);
+        return;
+    }
+    printf("** child process %d terminiated normally (code %d)\n", child, code);
+    status = LOADED;
 }
 
 void run()
@@ -338,16 +388,7 @@ void run()
     {
         printf("** program %s is already running.\n", programName.c_str());
     }
-    ptrace(PTRACE_CONT, child, 0, 0);
-    int code;
-    while (waitpid(child, &wait_status, 0) > 0)
-    {
-        code = WIFSTOPPED(wait_status);
-        if (code == 0)
-            continue;
-        // break
-    }
-    printf("** child process %d terminiated normally (code %d)\n", child, code);
+    cont();
 }
 
 int main(int argc, char *argv[])
@@ -357,7 +398,7 @@ int main(int argc, char *argv[])
         load(string(argv[1]));
     }
     if (cs_open(CS_ARCH_X86, CS_MODE_64, &cshandle) != CS_ERR_OK)
-		return -1;
+        return -1;
 
     int count = 0;
     size_t pos = 0;
@@ -476,13 +517,31 @@ int main(int argc, char *argv[])
                 continue;
             }
         }
+        else if (cmd == "cont" || cmd == "c")
+        {
+            if (status == RUNNING)
+            {
+                cont();
+                continue;
+            }
+            else
+            {
+                printHelp("cont");
+                continue;
+            }
+        }
         else if (cmd == "disasm" || cmd == "d")
         {
             if (status == LOADED || status == RUNNING)
             {
+                if (status == LOADED)
+                {
+                    printf("Not implement in LOADED status.\n");
+                    continue;
+                }
                 if (args[0] != "")
                 {
-                    sscanf(args[0].substr(args[0].find("0x")).c_str(), "%llx", &disaddr);
+                    sscanf(args[0].substr(args[0].find("0x")).c_str(), "%llx", &global_disaddr);
                 }
                 disasm();
             }
@@ -495,8 +554,14 @@ int main(int argc, char *argv[])
 
         else if (cmd == "break" || cmd == "b")
         {
-            if (status == LOADED || status == RUNNING)
+            if ((status == LOADED || status == RUNNING) && args[0] != "")
             {
+                if (status == LOADED)
+                    printf("Not implement in LOADED status.\n");
+                else
+                {
+                    breakaddr(args[0]);
+                }
             }
             else
             {
