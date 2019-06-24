@@ -208,28 +208,6 @@ void vmmap()
     }
 }
 
-void start()
-{
-    if ((child = fork()) < 0)
-        errquit("fork");
-    if (child == 0)
-    {
-        if (ptrace(PTRACE_TRACEME, 0, 0, 0) < 0)
-            errquit("ptrace");
-        execlp(programName.c_str(), programName.c_str(), NULL);
-        errquit("execvp");
-    }
-    else
-    {
-        if (waitpid(child, &wait_status, 0) < 0)
-            errquit("waitpid");
-        ptrace(PTRACE_SETOPTIONS, child, 0, PTRACE_O_EXITKILL);
-
-        cout << "** pid " << child << endl;
-        status = RUNNING;
-    }
-}
-
 void getreg(string regname)
 {
     struct user_regs_struct regs;
@@ -321,21 +299,16 @@ void getreg(string regname)
     }
 }
 
-void disasm()
-{
-    if (global_disaddr == 0)
-    {
-        printf("** no addr is given.\n");
-        return;
-    }
-    global_disaddr = disassemble(global_disaddr, 10);
-}
-
-
-
 void breakaddr(long long addr)
 {
     //cout << "breakaddr " << addr << endl;
+    unsigned long code;
+    code = ptrace(PTRACE_PEEKTEXT, child, addr, 0);
+    if (ptrace(PTRACE_POKETEXT, child, addr, (code & 0xffffffffffffff00) | 0xcc) != 0)
+        errquit("ptrace(POKETEXT)");
+
+    breakpoints[addr] = code;
+
     if (ptrace(PTRACE_POKETEXT, child, addr, (breakpoints[addr] & 0xffffffffffffff00) | 0xcc) != 0)
         errquit("ptrace(POKETEXT)");
 }
@@ -356,7 +329,7 @@ void setrip(long long addr)
     if (ptrace(PTRACE_GETREGS, child, 0, &regs) != 0)
         errquit("ptrace(GETREGS)");
 
-    if (addr != 0)
+    if (addr != 0 && addr != -1)
     {
         regs.rip = addr;
         if (ptrace(PTRACE_SETREGS, child, 0, &regs) != 0)
@@ -367,6 +340,11 @@ void setrip(long long addr)
     {
         restorebreak(next_break);
         next_break = 0;
+    }
+
+    if (addr == -1)
+    {
+        regs.rip = regs.rip - 1;
     }
 
     // break next
@@ -406,7 +384,7 @@ void cont()
             errquit("ptrace(GETREGS)");
 
         map<long long, unsigned long>::iterator iter = breakpoints.find(regs.rip - 1);
-        
+
         if (iter != breakpoints.end())
         {
             /* set registers */
@@ -423,25 +401,46 @@ void cont()
         return;
     }
     printf("** child process %d terminiated normally (code %d)\n", child, code);
+    next_break = 0;
     status = LOADED;
 }
 
 void addbreak(long long addr)
 {
     //cout << "addbreak " << addr << endl;
-    if (next_break != 0)
+    breakpoints[addr] = 0;
+    if (status == RUNNING)
     {
-        restorebreak(next_break);
-        next_break = 0;
+        if (next_break != 0)
+        {
+            restorebreak(next_break);
+            next_break = 0;
+        }
+        setrip(-1);
     }
+}
 
-    unsigned long code;
-    code = ptrace(PTRACE_PEEKTEXT, child, addr, 0);
-    if (ptrace(PTRACE_POKETEXT, child, addr, (code & 0xffffffffffffff00) | 0xcc) != 0)
-        errquit("ptrace(POKETEXT)");
+void start()
+{
+    if ((child = fork()) < 0)
+        errquit("fork");
+    if (child == 0)
+    {
+        if (ptrace(PTRACE_TRACEME, 0, 0, 0) < 0)
+            errquit("ptrace");
+        execlp(programName.c_str(), programName.c_str(), NULL);
+        errquit("execvp");
+    }
+    else
+    {
+        if (waitpid(child, &wait_status, 0) < 0)
+            errquit("waitpid");
+        ptrace(PTRACE_SETOPTIONS, child, 0, PTRACE_O_EXITKILL);
 
-    breakpoints[addr] = code;
-    setrip(0);
+        cout << "** pid " << child << endl;
+        status = RUNNING;
+        setrip(-1);
+    }
 }
 
 void run()
@@ -457,6 +456,26 @@ void run()
     cont();
 }
 
+void disasm()
+{
+    if (next_break != 0)
+    {
+        restorebreak(next_break);
+    }
+
+    if (global_disaddr == 0)
+    {
+        printf("** no addr is given.\n");
+        return;
+    }
+    global_disaddr = disassemble(global_disaddr, 10);
+
+    if (next_break != 0)
+    {
+        breakaddr(next_break);
+    }
+}
+
 void list()
 {
     int count = 0;
@@ -465,6 +484,109 @@ void list()
     {
         printf("%3d:%8llx\n", count, iter->first);
     }
+}
+
+void setreg(string regname, long long addr)
+{
+    struct user_regs_struct regs;
+    if (ptrace(PTRACE_GETREGS, child, 0, &regs) == 0)
+    {
+        if (regname == "rip")
+        {
+            setrip(addr);
+        }
+        else if (regname == "rax")
+        {
+            regs.rax = addr;
+        }
+        else if (regname == "rbx")
+        {
+            regs.rbx = addr;
+        }
+        else if (regname == "rcx")
+        {
+            regs.rcx = addr;
+        }
+        else if (regname == "rdx")
+        {
+            regs.rdx = addr;
+        }
+        else if (regname == "r8")
+        {
+            regs.r8 = addr;
+        }
+        else if (regname == "r9")
+        {
+            regs.r9 = addr;
+        }
+        else if (regname == "r10")
+        {
+            regs.r10 = addr;
+        }
+        else if (regname == "r11")
+        {
+            regs.r11 = addr;
+        }
+        else if (regname == "r12")
+        {
+            regs.r12 = addr;
+        }
+        else if (regname == "r13")
+        {
+            regs.r13 = addr;
+        }
+        else if (regname == "r14")
+        {
+            regs.r14 = addr;
+        }
+        else if (regname == "r15")
+        {
+            regs.r15 = addr;
+        }
+        else if (regname == "rdi")
+        {
+            regs.rdi = addr;
+        }
+        else if (regname == "rsi")
+        {
+            regs.rsi = addr;
+        }
+        else if (regname == "rbp")
+        {
+            regs.rbp = addr;
+        }
+        else if (regname == "rsp")
+        {
+            regs.rsp = addr;
+        }
+        else if (regname == "eflags")
+        {
+            regs.eflags = addr;
+        }
+
+        if (regname != "rip")
+        {
+            if (ptrace(PTRACE_SETREGS, child, 0, &regs) != 0)
+                errquit("ptrace(SETREGS)");
+        }
+    }
+}
+
+void deletebreak(int index){
+    if(breakpoints.size() < index){
+        printf("breakpoint %d not exist.\n",index);
+        return;
+    }
+    int count = 0;
+    map<long long, unsigned long>::iterator iter;
+    for (iter = breakpoints.begin(); iter != breakpoints.end(); ++iter,++count){
+        if (count == index)
+        {
+            breakpoints.erase(iter);
+            break;
+        }
+    }
+    printf("** breakpoint %d deleted.\n",index);
 }
 
 int main(int argc, char *argv[])
@@ -567,6 +689,21 @@ int main(int argc, char *argv[])
                 continue;
             }
         }
+        else if (cmd == "set" || cmd == "s")
+        {
+            if (status == RUNNING && args[0] != "" && args[1] != "")
+            {
+                long long addr;
+                sscanf(args[1].substr(args[1].find("0x")).c_str(), "%llx", &addr);
+                setreg(args[0], addr);
+                continue;
+            }
+            else
+            {
+                printHelp("set");
+                continue;
+            }
+        }
         else if (cmd == "getregs")
         {
             if (status == RUNNING)
@@ -632,14 +769,9 @@ int main(int argc, char *argv[])
         {
             if ((status == LOADED || status == RUNNING) && args[0] != "")
             {
-                if (status == LOADED)
-                    printf("Not implement in LOADED status.\n");
-                else
-                {
-                    long long addr;
-                    sscanf(args[0].substr(args[0].find("0x")).c_str(), "%llx", &addr);
-                    addbreak(addr);
-                }
+                long long addr;
+                sscanf(args[0].substr(args[0].find("0x")).c_str(), "%llx", &addr);
+                addbreak(addr);
             }
             else
             {
@@ -647,6 +779,13 @@ int main(int argc, char *argv[])
                 continue;
             }
         }
+        else if (cmd == "delete")
+        {
+            int index;
+            sscanf(args[0].c_str(), "%d", &index);
+            deletebreak(index);
+        }
+
         else if (cmd == "list" || cmd == "l")
         {
             list();
