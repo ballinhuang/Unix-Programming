@@ -44,6 +44,9 @@ map<long long, unsigned long> breakpoints;
 long long next_break = 0;
 long long last_break = 0;
 
+static long long load_begin = 0;
+bool sub_mode = false;
+
 map<string, string> helpmap = {
     {"break", "break or b [loaded and running]: Setup a break point. If a program is loaded but is not running, the address should be within the range specified by the text segment in the ELF file. When a break point is hit, you have to output a message and indicate the corresponding address and instruction."},
     {"cont", "cont or c [running]: continue the execution when a running program is stopped (suspended)."},
@@ -81,6 +84,21 @@ void print_instruction(long long addr, instruction1 *in)
     {
         snprintf(&bytes[i * 3], 4, "%2.2x ", in->bytes[i]);
     }
+    if (sub_mode)
+        printf("%12llx: %-32s\t%-10s%s\n", addr - load_begin, bytes, in->opr.c_str(), in->opnd.c_str());
+    else
+        printf("%12llx: %-32s\t%-10s%s\n", addr, bytes, in->opr.c_str(), in->opnd.c_str());
+}
+
+void print_break(long long addr, instruction1 *in)
+{
+    int i;
+    char bytes[128] = "";
+    for (i = 0; i < in->size; i++)
+    {
+        snprintf(&bytes[i * 3], 4, "%2.2x ", in->bytes[i]);
+    }
+
     printf("%12llx: %-32s\t%-10s%s\n", addr, bytes, in->opr.c_str(), in->opnd.c_str());
 }
 
@@ -120,9 +138,41 @@ unsigned long long disassemble(unsigned long long disaddr, int dumpcount)
 
     map<long long, instruction1>::iterator iter = instructions.find(disaddr);
     for (int i = 0; iter != instructions.end() && i < dumpcount; ++iter, ++i)
-        print_instruction(iter->first, &iter->second);
+    {
+        if (dumpcount == 1)
+        {
+            print_break(iter->first, &iter->second);
+        }
+        else
+            print_instruction(iter->first, &iter->second);
+    }
 
     return iter->first;
+}
+
+void getstart()
+{
+    map<range_t, map_entry_t> m;
+    map<range_t, map_entry_t>::iterator mi;
+
+    if (load_maps(child, m) > 0)
+    {
+        for (mi = m.begin(); mi != m.end(); mi++)
+        {
+            load_begin = mi->second.range.begin;
+            break;
+        }
+    }
+
+    if (load_begin + offset != entry)
+    {
+        sub_mode = true;
+    }
+    else
+    {
+        sub_mode = false;
+        load_begin = 0;
+    }
 }
 
 /*
@@ -301,15 +351,16 @@ void getreg(string regname)
 
 void breakaddr(long long addr)
 {
-    //cout << "breakaddr " << addr << endl;
+    //printf("breakaddr %llx\n", addr);
     unsigned long code;
     code = ptrace(PTRACE_PEEKTEXT, child, addr, 0);
+
+    if (sub_mode)
+        breakpoints[addr - load_begin] = code;
+    else
+        breakpoints[addr] = code;
+
     if (ptrace(PTRACE_POKETEXT, child, addr, (code & 0xffffffffffffff00) | 0xcc) != 0)
-        errquit("ptrace(POKETEXT)");
-
-    breakpoints[addr] = code;
-
-    if (ptrace(PTRACE_POKETEXT, child, addr, (breakpoints[addr] & 0xffffffffffffff00) | 0xcc) != 0)
         errquit("ptrace(POKETEXT)");
 }
 
@@ -317,8 +368,16 @@ void restorebreak(long long addr)
 {
     //cout << "restorebreak " << addr << endl;
     /* restore break point */
-    if (ptrace(PTRACE_POKETEXT, child, addr, breakpoints[addr]) != 0)
-        errquit("ptrace(POKETEXT)");
+    if (sub_mode)
+    {
+        if (ptrace(PTRACE_POKETEXT, child, addr + load_begin, breakpoints[addr]) != 0)
+            errquit("ptrace(POKETEXT)");
+    }
+    else
+    {
+        if (ptrace(PTRACE_POKETEXT, child, addr, breakpoints[addr]) != 0)
+            errquit("ptrace(POKETEXT)");
+    }
 }
 
 void setrip(long long addr)
@@ -347,30 +406,63 @@ void setrip(long long addr)
         regs.rip = regs.rip - 1;
     }
 
+    if (regs.rip < entry + load_begin || regs.rip > entry + size + load_begin)
+    {
+        regs.rip = load_begin;
+    }
+
     // break next
     map<long long, unsigned long>::iterator iter;
     for (iter = breakpoints.begin(); iter != breakpoints.end(); ++iter)
     {
-        if (next_break == 0 && (unsigned long long)iter->first > regs.rip)
+        if (sub_mode)
         {
-            next_break = iter->first;
+            if (next_break == 0 && (unsigned long long)iter->first + load_begin > regs.rip)
+            {
+                next_break = iter->first;
+            }
+            if (next_break != 0 && (unsigned long long)iter->first + load_begin > regs.rip && next_break > iter->first)
+            {
+                next_break = iter->first;
+            }
         }
-        if (next_break != 0 && (unsigned long long)iter->first > regs.rip && next_break > iter->first)
+        else
         {
-            next_break = iter->first;
+            if (next_break == 0 && (unsigned long long)iter->first > regs.rip)
+            {
+                next_break = iter->first;
+            }
+            if (next_break != 0 && (unsigned long long)iter->first > regs.rip && next_break > iter->first)
+            {
+                next_break = iter->first;
+            }
         }
     }
+
     if (next_break != 0)
     {
-        breakaddr(next_break);
+        if (sub_mode)
+            breakaddr(next_break + load_begin);
+        else
+            breakaddr(next_break);
     }
 }
 
-void cont()
+void cont(string mode)
 {
     //cout << "count " << endl;
-    if (ptrace(PTRACE_CONT, child, 0, 0) < 0)
-        errquit("cont failed!");
+
+    if (mode == "si")
+    {
+        if (ptrace(PTRACE_SINGLESTEP, child, 0, 0) < 0)
+            errquit("cont failed!");
+    }
+    else
+    {
+        if (ptrace(PTRACE_CONT, child, 0, 0) < 0)
+            errquit("cont failed!");
+    }
+
     int code;
     while (waitpid(child, &wait_status, 0) > 0)
     {
@@ -383,7 +475,11 @@ void cont()
         if (ptrace(PTRACE_GETREGS, child, 0, &regs) != 0)
             errquit("ptrace(GETREGS)");
 
-        map<long long, unsigned long>::iterator iter = breakpoints.find(regs.rip - 1);
+        map<long long, unsigned long>::iterator iter;
+        if (sub_mode)
+            iter = breakpoints.find(regs.rip - 1 - load_begin);
+        else
+            iter = breakpoints.find(regs.rip - 1);
 
         if (iter != breakpoints.end())
         {
@@ -395,7 +491,7 @@ void cont()
             setrip(regs.rip - 1);
 
             printf("** breakpoint @       ");
-            disassemble(iter->first, 1);
+            disassemble(regs.rip - 1, 1);
         }
 
         return;
@@ -407,7 +503,7 @@ void cont()
 
 void addbreak(long long addr)
 {
-    //cout << "addbreak " << addr << endl;
+    //printf("addbreak %llx\n",addr);
     breakpoints[addr] = 0;
     if (status == RUNNING)
     {
@@ -439,6 +535,7 @@ void start()
 
         cout << "** pid " << child << endl;
         status = RUNNING;
+        getstart();
         setrip(-1);
     }
 }
@@ -453,7 +550,7 @@ void run()
     {
         printf("** program %s is already running.\n", programName.c_str());
     }
-    cont();
+    cont("");
 }
 
 void disasm()
@@ -472,7 +569,10 @@ void disasm()
 
     if (next_break != 0)
     {
-        breakaddr(next_break);
+        if (sub_mode)
+            breakaddr(next_break + load_begin);
+        else
+            breakaddr(next_break);
     }
 }
 
@@ -572,21 +672,33 @@ void setreg(string regname, long long addr)
     }
 }
 
-void deletebreak(int index){
-    if(breakpoints.size() < index){
-        printf("breakpoint %d not exist.\n",index);
+void deletebreak(int index)
+{
+    if (breakpoints.size() < index)
+    {
+        printf("breakpoint %d not exist.\n", index);
         return;
     }
     int count = 0;
     map<long long, unsigned long>::iterator iter;
-    for (iter = breakpoints.begin(); iter != breakpoints.end(); ++iter,++count){
+    for (iter = breakpoints.begin(); iter != breakpoints.end(); ++iter, ++count)
+    {
         if (count == index)
         {
+            if (iter->first == next_break)
+            {
+                restorebreak(next_break);
+            }
             breakpoints.erase(iter);
             break;
         }
     }
-    printf("** breakpoint %d deleted.\n",index);
+    printf("** breakpoint %d deleted.\n", index);
+}
+
+void si()
+{
+    cont("si");
 }
 
 int main(int argc, char *argv[])
@@ -694,7 +806,10 @@ int main(int argc, char *argv[])
             if (status == RUNNING && args[0] != "" && args[1] != "")
             {
                 long long addr;
-                sscanf(args[1].substr(args[1].find("0x")).c_str(), "%llx", &addr);
+                if (args[1].find("0x") != std::string::npos)
+                    sscanf(args[1].substr(args[1].find("0x")).c_str(), "%llx", &addr);
+                else
+                    sscanf(args[1].c_str(), "%lld", &addr);
                 setreg(args[0], addr);
                 continue;
             }
@@ -734,7 +849,7 @@ int main(int argc, char *argv[])
         {
             if (status == RUNNING)
             {
-                cont();
+                cont("");
                 continue;
             }
             else
@@ -754,9 +869,16 @@ int main(int argc, char *argv[])
                 }
                 if (args[0] != "")
                 {
-                    sscanf(args[0].substr(args[0].find("0x")).c_str(), "%llx", &global_disaddr);
+                    if (sub_mode)
+                    {
+                        sscanf(args[0].substr(args[0].find("0x")).c_str(), "%llx", &global_disaddr);
+                        global_disaddr += load_begin;
+                    }
+                    else
+                        sscanf(args[0].substr(args[0].find("0x")).c_str(), "%llx", &global_disaddr);
                 }
                 disasm();
+                continue;
             }
             else
             {
@@ -772,6 +894,7 @@ int main(int argc, char *argv[])
                 long long addr;
                 sscanf(args[0].substr(args[0].find("0x")).c_str(), "%llx", &addr);
                 addbreak(addr);
+                continue;
             }
             else
             {
@@ -790,6 +913,20 @@ int main(int argc, char *argv[])
         {
             list();
             continue;
+        }
+
+        else if (cmd == "si")
+        {
+            if (status == RUNNING)
+            {
+                si();
+                continue;
+            }
+            else
+            {
+                printHelp("si");
+                continue;
+            }
         }
 
         else if (cmd == "exit" || cmd == "q")
