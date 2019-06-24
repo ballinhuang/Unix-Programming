@@ -41,6 +41,8 @@ public:
 static csh cshandle = 0;
 static map<long long, instruction1> instructions;
 map<long long, unsigned long> breakpoints;
+long long next_break = 0;
+long long last_break = 0;
 
 map<string, string> helpmap = {
     {"break", "break or b [loaded and running]: Setup a break point. If a program is loaded but is not running, the address should be within the range specified by the text segment in the ELF file. When a break point is hit, you have to output a message and indicate the corresponding address and instruction."},
@@ -82,9 +84,9 @@ void print_instruction(long long addr, instruction1 *in)
     printf("%12llx: %-32s\t%-10s%s\n", addr, bytes, in->opr.c_str(), in->opnd.c_str());
 }
 
-unsigned long long disassemble(unsigned long long disaddr,int dumpcount)
+unsigned long long disassemble(unsigned long long disaddr, int dumpcount)
 {
-   
+
     int count;
     char buf[64] = {0};
     unsigned long long ptr = disaddr;
@@ -120,7 +122,6 @@ unsigned long long disassemble(unsigned long long disaddr,int dumpcount)
     for (int i = 0; iter != instructions.end() && i < dumpcount; ++iter, ++i)
         print_instruction(iter->first, &iter->second);
 
-    
     return iter->first;
 }
 
@@ -327,55 +328,120 @@ void disasm()
         printf("** no addr is given.\n");
         return;
     }
-    global_disaddr = disassemble(global_disaddr,10);
+    global_disaddr = disassemble(global_disaddr, 10);
 }
 
-void breakaddr(string straddr)
+
+
+void breakaddr(long long addr)
 {
-    long long addr;
-    unsigned long code;
-    sscanf(straddr.substr(straddr.find("0x")).c_str(), "%llx", &addr);
-
-    code = ptrace(PTRACE_PEEKTEXT, child, addr, 0);
-    if (ptrace(PTRACE_POKETEXT, child, addr, (code & 0xffffffffffffff00) | 0xcc) != 0)
+    //cout << "breakaddr " << addr << endl;
+    if (ptrace(PTRACE_POKETEXT, child, addr, (breakpoints[addr] & 0xffffffffffffff00) | 0xcc) != 0)
         errquit("ptrace(POKETEXT)");
+}
 
-    breakpoints[addr] = code;
+void restorebreak(long long addr)
+{
+    //cout << "restorebreak " << addr << endl;
+    /* restore break point */
+    if (ptrace(PTRACE_POKETEXT, child, addr, breakpoints[addr]) != 0)
+        errquit("ptrace(POKETEXT)");
+}
+
+void setrip(long long addr)
+{
+    //cout << "setrip " << addr << endl;
+
+    struct user_regs_struct regs;
+    if (ptrace(PTRACE_GETREGS, child, 0, &regs) != 0)
+        errquit("ptrace(GETREGS)");
+
+    if (addr != 0)
+    {
+        regs.rip = addr;
+        if (ptrace(PTRACE_SETREGS, child, 0, &regs) != 0)
+            errquit("ptrace(SETREGS)");
+    }
+
+    if (next_break != 0)
+    {
+        restorebreak(next_break);
+        next_break = 0;
+    }
+
+    // break next
+    map<long long, unsigned long>::iterator iter;
+    for (iter = breakpoints.begin(); iter != breakpoints.end(); ++iter)
+    {
+        if (next_break == 0 && (unsigned long long)iter->first > regs.rip)
+        {
+            next_break = iter->first;
+        }
+        if (next_break != 0 && (unsigned long long)iter->first > regs.rip && next_break > iter->first)
+        {
+            next_break = iter->first;
+        }
+    }
+    if (next_break != 0)
+    {
+        breakaddr(next_break);
+    }
 }
 
 void cont()
 {
+    //cout << "count " << endl;
     if (ptrace(PTRACE_CONT, child, 0, 0) < 0)
         errquit("cont failed!");
     int code;
     while (waitpid(child, &wait_status, 0) > 0)
     {
-        struct user_regs_struct regs;
         code = WIFSTOPPED(wait_status);
         if (code == 0)
             continue;
+
+        struct user_regs_struct regs;
+
         if (ptrace(PTRACE_GETREGS, child, 0, &regs) != 0)
             errquit("ptrace(GETREGS)");
 
         map<long long, unsigned long>::iterator iter = breakpoints.find(regs.rip - 1);
+        
         if (iter != breakpoints.end())
         {
-            /* restore break point */
-            if (ptrace(PTRACE_POKETEXT, child, iter->first, iter->second) != 0)
-                errquit("ptrace(POKETEXT)");
             /* set registers */
-            regs.rip = regs.rip - 1;
             regs.rdx = regs.rax;
             if (ptrace(PTRACE_SETREGS, child, 0, &regs) != 0)
                 errquit("ptrace(SETREGS)");
+
+            setrip(regs.rip - 1);
+
+            printf("** breakpoint @       ");
+            disassemble(iter->first, 1);
         }
-        
-        printf("** breakpoint @       ");
-        disassemble(iter->first,1);
+
         return;
     }
     printf("** child process %d terminiated normally (code %d)\n", child, code);
     status = LOADED;
+}
+
+void addbreak(long long addr)
+{
+    //cout << "addbreak " << addr << endl;
+    if (next_break != 0)
+    {
+        restorebreak(next_break);
+        next_break = 0;
+    }
+
+    unsigned long code;
+    code = ptrace(PTRACE_PEEKTEXT, child, addr, 0);
+    if (ptrace(PTRACE_POKETEXT, child, addr, (code & 0xffffffffffffff00) | 0xcc) != 0)
+        errquit("ptrace(POKETEXT)");
+
+    breakpoints[addr] = code;
+    setrip(0);
 }
 
 void run()
@@ -389,6 +455,16 @@ void run()
         printf("** program %s is already running.\n", programName.c_str());
     }
     cont();
+}
+
+void list()
+{
+    int count = 0;
+    map<long long, unsigned long>::iterator iter = breakpoints.begin();
+    for (; iter != breakpoints.end(); ++iter, ++count)
+    {
+        printf("%3d:%8llx\n", count, iter->first);
+    }
 }
 
 int main(int argc, char *argv[])
@@ -407,7 +483,7 @@ int main(int argc, char *argv[])
     string args[2];
     while (true)
     {
-        cout << "sdb> ";
+        printf("sdb> ");
         count = 0;
         args[0] = "";
         args[1] = "";
@@ -560,7 +636,9 @@ int main(int argc, char *argv[])
                     printf("Not implement in LOADED status.\n");
                 else
                 {
-                    breakaddr(args[0]);
+                    long long addr;
+                    sscanf(args[0].substr(args[0].find("0x")).c_str(), "%llx", &addr);
+                    addbreak(addr);
                 }
             }
             else
@@ -569,6 +647,12 @@ int main(int argc, char *argv[])
                 continue;
             }
         }
+        else if (cmd == "list" || cmd == "l")
+        {
+            list();
+            continue;
+        }
+
         else if (cmd == "exit" || cmd == "q")
         {
             cout << "bye~" << endl;
